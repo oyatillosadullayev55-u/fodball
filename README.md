@@ -1,36 +1,63 @@
-# ⚽ Fodball
+# ⚽ Fodball 3D
 
-Futbol klubi boshqaruv paneli — **Flutter** (Material 3) bilan yozilgan, to'liq responsiv dashboard.
-Dizayn: dark navy fon, lime va gold aksentlar, maydon ustidagi o'yinchilar tarkibi.
+**O'ynaladigan 3D penalti o'yini** — Flutter bilan yozilgan, tashqi 3D paket va assetlarsiz.
+Haqiqiy perspektiv kamera, uch o'lchamli maydon, darvoza va to'r, fizika hamda darvozabon
+sun'iy intellekti.
 
-![Fodball dashboard](docs/preview-desktop.png)
+![Fodball 3D — telefon](docs/game-phone.png)
 
 ## Skrinshotlar
+
+| O'yin — 1612×720 | FULL TIME | Brauzer — 716×320 |
+| --- | --- | --- |
+| ![O'yin](docs/game-phone.png) | ![FULL TIME](docs/game-fulltime.png) | ![Web](docs/game-web.png) |
+
+## O'yin
+
+- **10 ta penalti** — har zarba hisoblanadi: `GOAL!`, `SAVED`, `MISS`.
+- **Boshqaruv:** barmoq bilan sudrab nishonga oling (kuch shkalasi to'ladi) va qo'yib yuboring;
+  yoki shunchaki kerakli nuqtaga bosing.
+- **Banan effekti** — kuchliroq zarbada to'p yon tomonga buriladi.
+- **Darvozabon AI** — har zarbada zarba yo'nalishini "o'qish" ehtimoli oshadi (42% → 88%),
+  past/yuqori burchakka tashlanadi.
+- **Streak** — ketma-ket gollar, eng uzun seriya saqlanadi.
+- **FULL TIME** — gol soni, aniqlik foizi, eng uzun seriya, `PLAY AGAIN` va `CLUB`.
+- **Effektlar** — to'r tebranishi, kamera silkinishi, konfetti, to'p izi, haptik javob.
+- **Landshaft** — o'yin butun ekranni egallaydi (immersive), kamera uchun o'yilgan joy ham.
+
+### Boshqaruv
+
+| Harakat | Natija |
+| --- | --- |
+| Sudrab nishonga olish | Nishon darvoza tekisligida siljiydi, kuch to'ladi |
+| Qo'yib yuborish | Zarba |
+| Bosish | Nishon + zarba bir vaqtda |
+
+## 3D dvigatel
+
+Tashqi paket yo'q — `CustomPainter` va o'zimizning proyeksiya matematikasi:
+
+| Fayl | Vazifa |
+| --- | --- |
+| `lib/game3d/vec3.dart` | `V3` vektor, `Camera3D`, `Projector` (`project`, `unproject`, `scaleAt`) |
+| `lib/game3d/penalty_game.dart` | O'yin holati, fizika, darvozabon AI, konfetti |
+| `lib/game3d/game_painter.dart` | Butun 3D sahna: osmon, tribuna, maydon, darvoza, to'r, to'p |
+| `lib/screens/game_screen.dart` | Ticker o'yin sikli, HUD, imo-ishoralar, FULL TIME |
+
+Kamera: ko'z `(0, 1.75, -9.6)`, qarash `(0, 1.15, 0)`, `fovY = 0.92`.
+Darvozaning real o'lchamlari: 7.32 × 2.44 m, to'p radiusi 0.11 m.
+
+Batafsil: [`docs/GAME.md`](docs/GAME.md)
+
+## CLUB ekrani
+
+O'yindagi **CLUB** tugmasi klub boshqaruv panelini ochadi (dashboard dizayni saqlangan):
+profil, `PLAY / TOURNAMENT / MY CLUB / STORE`, jonli o'yin, `CHAMPIONS!` banneri,
+4-3-3 tarkib, Team Power, do'kon va season progress.
 
 | Desktop — 1672×941 | Mobile — 414×896 |
 | --- | --- |
 | ![Desktop](docs/preview-desktop.png) | ![Mobile](docs/preview-mobile.png) |
-
-## Imkoniyatlar
-
-- **Profil paneli** — avatar, `Oyatillo_4349`, Level 28, XP progress, 128 o'yin / 92 g'alaba / 7 kubok
-- **Navigatsiya** — `PLAY`, `TOURNAMENT`, `MY CLUB`, `STORE` (highlight holati bilan)
-- **Jonli o'yin** — `RMA 0-0 15:24`, egalik foizi, "Watch match"
-- **UCL EVENT banneri** — `CHAMPIONS!`, Real Madrid, `Play Now!`, `6d 12h 37m` countdown
-- **Match control** — `Shoot` / `Pass` / `Sprint` + possession, shots, xG, passes statistikasi
-- **My Team** — `4-3-3` maydoni (CustomPainter chiziqlari), 11 o'yinchi kartasi (reyting + pozitsiya), `Team Power 96.8`, Attack / Midfield / Goalkeeper barlari
-- **Store** — Packs / Players / Coins tablari, Standard / Premium / Legendary paketlar, `-70%` Special Offer
-- **Season progress** — Division 3, 1,840 / 2,500 pts, reward kartalari
-- **Responsiv layout** — 3 ustun → 2 ustun → 1 ustun, overflow'siz
-
-## Texnologiyalar
-
-| | |
-| --- | --- |
-| Framework | Flutter 3.47 (Dart 3.13) |
-| UI | Material 3, custom `GlassCard`, `Pill`, `StatBar`, `PitchPainter` |
-| Paketlar | faqat Flutter SDK (tashqi dependency yo'q) |
-| Platformalar | Android, iOS, Web |
 
 ## Ishga tushirish
 
@@ -63,41 +90,33 @@ flutter build apk --release
 
 ```
 lib/
-├─ main.dart                      # kirish nuqtasi
+├─ main.dart                       # kirish nuqtasi (landshaft lock)
+├─ game3d/
+│  ├─ vec3.dart                    # 3D vektor, kamera, proyeksiya
+│  ├─ penalty_game.dart            # o'yin logikasi, fizika, darvozabon AI
+│  └─ game_painter.dart            # 3D sahna renderer
+├─ screens/
+│  ├─ game_screen.dart             # o'yin ekrani + HUD
+│  └─ dashboard_screen.dart        # CLUB ekrani
 ├─ theme/
-│  ├─ app_colors.dart             # rang palitrasi
-│  └─ app_theme.dart              # Material 3 temasi
-├─ models/models.dart             # Player, MenuEntry, Pack
-├─ data/mock_data.dart            # demo ma'lumotlar
-├─ screens/dashboard_screen.dart  # responsiv layout
-└─ widgets/
-   ├─ common.dart                 # GlassCard, Pill, StatBar, PitchPainter...
-   ├─ top_bar.dart                # profil, valyutalar, bo'limlar
-   ├─ side_panel.dart             # profil, menyu, jonli o'yin, iqtibos
-   ├─ hero_card.dart              # CHAMPIONS! / UCL EVENT
-   ├─ match_control_card.dart     # Shoot / Pass / Sprint
-   ├─ team_panel.dart             # maydon, o'yinchilar, Team Power
-   └─ store_panel.dart            # paketlar, Special Offer
+│  ├─ app_colors.dart
+│  └─ app_theme.dart
+├─ models/models.dart
+├─ data/mock_data.dart
+└─ widgets/                        # dashboard komponentlari
 ```
-
-## Responsivlik
-
-| Kenglik | Layout |
-| --- | --- |
-| `≥ 1180 px` | 3 ustun: sidebar + markaz + jamoa/do'kon |
-| `≥ 860 px` | 2 ustun: sidebar + kontent |
-| `< 860 px` | 1 ustun (telefon) |
 
 ## Sifat nazorati
 
 ```bash
 flutter analyze   # 0 issue
-flutter test      # 8 test: 1920→360 px gacha overflow tekshiruvi
+flutter test      # 16 test: 3D proyeksiya, fizika, 10 zarba, 4 o'lcham, CLUB layout
 ```
 
-## Dizayn hujjati
+## Hujjatlar
 
-Batafsil spetsifikatsiya: [`docs/DESIGN.md`](docs/DESIGN.md)
+- [`docs/GAME.md`](docs/GAME.md) — o'yin, 3D dvigatel, boshqaruv
+- [`docs/DESIGN.md`](docs/DESIGN.md) — CLUB ekrani dizayn spetsifikatsiyasi
 
 ---
 

@@ -23,7 +23,11 @@ class DashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: Column(
                 children: [
-                  const TopBar(),
+                  TopBar(
+                    onBack: Navigator.of(context).canPop()
+                        ? () => Navigator.of(context).pop()
+                        : null,
+                  ),
                   const SizedBox(height: 14),
                   Expanded(
                     child: LayoutBuilder(

@@ -6,7 +6,9 @@ import 'common.dart';
 
 /// Yuqori panel: profil, valyutalar va bo'limlar.
 class TopBar extends StatelessWidget {
-  const TopBar({super.key});
+  const TopBar({super.key, this.onBack});
+
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +24,17 @@ class TopBar extends StatelessWidget {
           radius: 20,
           child: Row(
             children: [
+              if (onBack != null) ...[
+                GestureDetector(
+                  onTap: onBack,
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    size: 18,
+                    color: AppColors.muted,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               const GradientAvatar(
                 label: 'OA',
                 color: AppColors.lime,

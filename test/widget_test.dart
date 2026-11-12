@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fodball/main.dart';
+import 'package:fodball/screens/dashboard_screen.dart';
+import 'package:fodball/theme/app_theme.dart';
 
 Future<void> _pumpAt(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  await tester.pumpWidget(const FodballApp());
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.dark,
+      home: const DashboardScreen(),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('Dashboard renders the main sections', (tester) async {
+  testWidgets('CLUB ekrani asosiy bo\'limlarni chizadi', (tester) async {
     await _pumpAt(tester, const Size(1600, 1000));
 
     expect(find.text('CHAMPIONS!'), findsOneWidget);
@@ -30,7 +36,7 @@ void main() {
     Size(414, 896),
     Size(360, 780),
   ]) {
-    testWidgets('No overflow at ${size.width.toInt()}x${size.height.toInt()}',
+    testWidgets('CLUB ekranida overflow yo\'q: ${size.width.toInt()}x${size.height.toInt()}',
         (tester) async {
       await _pumpAt(tester, size);
       expect(tester.takeException(), isNull);

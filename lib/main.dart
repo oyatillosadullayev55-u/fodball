@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'screens/dashboard_screen.dart';
+import 'screens/game_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
   runApp(const FodballApp());
 }
 
@@ -13,10 +19,10 @@ class FodballApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Fodball',
+      title: 'Fodball 3D',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const DashboardScreen(),
+      home: const GameScreen(),
     );
   }
 }

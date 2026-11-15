@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'screens/game_screen.dart';
+import 'screens/home_screen.dart';
+import 'state/game_state.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -10,19 +11,25 @@ Future<void> main() async {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
-  runApp(const FodballApp());
+  runApp(FodballApp(state: GameState()));
 }
 
 class FodballApp extends StatelessWidget {
-  const FodballApp({super.key});
+  const FodballApp({super.key, required this.state, this.home});
+
+  final GameState state;
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Fodball 3D',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: const GameScreen(),
+    return GameStateScope(
+      state: state,
+      child: MaterialApp(
+        title: 'Fodball 3D — Football Legends',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.dark,
+        home: home ?? const HomeScreen(),
+      ),
     );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fodball/game3d/penalty_game.dart';
 import 'package:fodball/game3d/vec3.dart';
-import 'package:fodball/main.dart';
+import 'package:fodball/screens/game_screen.dart';
 
 void main() {
   const landscape = Size(716, 320);
@@ -89,7 +89,7 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
-        await tester.pumpWidget(const FodballApp());
+        await tester.pumpWidget(const MaterialApp(home: GameScreen()));
         await tester.pump(const Duration(milliseconds: 16));
         await tester.pump(const Duration(milliseconds: 16));
 

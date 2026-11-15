@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import '../game3d/game_painter.dart';
 import '../game3d/penalty_game.dart';
 import '../theme/app_colors.dart';
-import 'dashboard_screen.dart';
 
 /// 3D penalti o'yini ekrani.
 class GameScreen extends StatefulWidget {
@@ -43,10 +42,8 @@ class _GameScreenState extends State<GameScreen>
     super.dispose();
   }
 
-  void _openClub() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const DashboardScreen()),
-    );
+  void _exitToMenu() {
+    Navigator.of(context).pop();
   }
 
   @override
@@ -91,9 +88,9 @@ class _GameScreenState extends State<GameScreen>
                     top: 0,
                     right: 0,
                     child: _RoundButton(
-                      icon: Icons.shield_rounded,
-                      label: 'CLUB',
-                      onTap: _openClub,
+                      icon: Icons.exit_to_app_rounded,
+                      label: 'EXIT',
+                      onTap: _exitToMenu,
                     ),
                   ),
                 ],
@@ -106,7 +103,7 @@ class _GameScreenState extends State<GameScreen>
             animation: _game,
             builder: (context, _) => _GameOverOverlay(
               game: _game,
-              onClub: _openClub,
+              onClub: _exitToMenu,
             ),
           ),
         ],
@@ -616,8 +613,8 @@ class _GameOverOverlay extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _ActionButton(
-                    label: 'CLUB',
-                    icon: Icons.shield_rounded,
+                    label: 'MENU',
+                    icon: Icons.home_rounded,
                     filled: false,
                     onTap: onClub,
                   ),

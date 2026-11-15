@@ -149,7 +149,6 @@ class CurrencyBar extends StatelessWidget {
               icon: Icons.monetization_on_rounded,
               value: _format(state.coins),
               color: AppColors.gold,
-              onAdd: () => Navigator.of(context).pushNamed('/store'),
             ),
           ),
           if (!compact) const SizedBox(width: 8),
@@ -159,7 +158,6 @@ class CurrencyBar extends StatelessWidget {
                 icon: Icons.diamond_rounded,
                 value: _format(state.gems),
                 color: AppColors.violet,
-                onAdd: () => Navigator.of(context).pushNamed('/store'),
               ),
             ),
         ],
@@ -201,12 +199,14 @@ class GlassPanel extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
+            Colors.white.withValues(alpha: 0.07),
             const Color(0xFF16233F).withValues(alpha: alpha),
             const Color(0xFF0A1120).withValues(alpha: alpha),
           ],
+          stops: const [0.0, 0.25, 1.0],
         ),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),

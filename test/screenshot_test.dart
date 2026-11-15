@@ -56,6 +56,18 @@ Future<void> _pump(WidgetTester tester, Size size, Widget screen,
     ),
   );
   if (settle) {
+    // Widget testlarida rasm dekodlash real (fake bo'lmagan) vaqt talab
+    // qiladi, shuning uchun ularni runAsync ichida oldindan yuklaymiz.
+    await tester.runAsync(() async {
+      final context = tester.element(find.byType(MaterialApp));
+      for (final asset in const [
+        'assets/images/hero_player.png',
+        'assets/images/stadium_bg.png',
+        'assets/images/champions_bg.png',
+      ]) {
+        await precacheImage(AssetImage(asset), context);
+      }
+    });
     await tester.pumpAndSettle();
   } else {
     for (var i = 0; i < 180; i++) {

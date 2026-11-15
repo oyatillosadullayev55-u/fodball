@@ -18,6 +18,14 @@ o'yin bilan.
 | --- |
 | ![Home portrait](docs/home_portrait.png) |
 
+## Menyu boshqaruvi
+
+- **Scroll yo'q** — home ekrani hech qachon aylanmaydi; barcha bo'limlar
+  faqat tugma bosish orqali ochiladi.
+- Uch xil joylashuv avtomatik tanlanadi: keng ekran (3 ustun), planshet
+  (hero + 6 ta kafel) va telefon portreti (hero + 2×3 kafel).
+- `Start Match` / `Play Match` — 11x11 o'yinni boshlaydi.
+
 ## O'yin rejimi
 
 ### 1. Penalti (TRAINING)
@@ -33,9 +41,14 @@ o'yin bilan.
 ### 2. 11x11 o'yin (PLAY MATCH)
 
 - **To'liq 3D match**: 22 o'yinchi, to'p fizikasi, egallik/olib qochish logikasi.
-- **Boshqaruv**: floating joystick + `SHOOT` / `PASS` / `SPRINT` tugmalari.
+- **Jonli render**: `AnimatedBuilder` har kadrda painter'ni qayta quradi — o'yinchilar
+  doim harakatda, yugurish sikli va tana tebranishi bilan.
+- **Boshqaruv**: floating joystick (ekranning chap yarmida istalgan joydan) +
+  `SHOOT` / `PASS` / `SPRINT` tugmalari.
 - **AI jamoa**: o'yinchilar pozitsiya sxemasiga qarab harakatlanadi, press qiladi,
   pas va zarba qiladi; darvozabon to'pni kuzatadi.
+- **Kamera**: o'yinchini kattaroq ko'rsatish uchun yaqinlashtirilgan, to'pni
+  vertikal va yonma-yon kuzatadi.
 - **Match clock**: real vaqt 90 daqiqaga map qilinadi.
 - **Minimap**: chap pastki burchakda jonli xarita.
 - **UCL Final**: finalni yutsangiz `CHAMPIONS!` ekrani ochiladi.
@@ -44,7 +57,7 @@ o'yin bilan.
 
 | Ekran | Tavsif |
 | --- | --- |
-| **Home** | Football Legends uslubidagi menyu: profil, daraja, valyuta, Next Match, LALIGA jadvali |
+| **Home** | Football Legends uslubidagi menyu: profil, daraja, valyuta, Next Match, LALIGA jadvali. Scrollsiz — faqat tugmalar |
 | **My Team** | 4-3-3 tarkib, Team Power, statistika paneli, taktika (sxema, uslub), yangilash |
 | **Career** | Statistika: o'yinlar, gollar, o'sish grafigi |
 | **Tournaments** | UCL finaliga qadar jonli countdown |
@@ -135,7 +148,7 @@ lib/
 
 ```bash
 flutter analyze   # 0 issue
-flutter test      # 29 test: 3D proyeksiya, fizika, match AI, UI overflow
+flutter test      # 35 test: 3D proyeksiya, match AI, scrollsiz menyu, jonli render
 ```
 
 ---

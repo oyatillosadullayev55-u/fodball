@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fodball/data/mock_data.dart';
+import 'package:fodball/game3d/match_painter.dart';
 import 'package:fodball/main.dart';
+import 'package:fodball/screens/match_screen.dart';
 import 'package:fodball/state/game_state.dart';
 
 Future<void> _pumpAt(WidgetTester tester, Size size) async {
@@ -41,4 +44,56 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Home hech qachon scroll qilmaydi, faqat tugma bilan o\'tiladi',
+      (tester) async {
+    await _pumpAt(tester, const Size(360, 780));
+    expect(find.byType(Scrollable), findsNothing);
+
+    await tester.tap(find.text('Start Match'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(MatchScreen), findsOneWidget);
+  });
+
+  testWidgets('Match ko\'rinishi har kadrda yangilanadi va o\'yinchilar yuradi',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      GameStateScope(
+        state: GameState(),
+        child: MaterialApp(home: MatchScreen(match: MockData.nextMatch)),
+      ),
+    );
+
+    MatchPainter currentPainter() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((c) => c.painter)
+        .whereType<MatchPainter>()
+        .single;
+
+    await tester.pump(const Duration(milliseconds: 16));
+    final first = currentPainter();
+    final before = [for (final p in first.game.players) p.pos];
+    final startTime = first.game.time;
+
+    for (var i = 0; i < 150; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final second = currentPainter();
+    // Painter har kadrda yangi bo'ladi — 3D sahna muzlab qolmaydi.
+    expect(identical(first, second), isFalse);
+    expect(second.game.time, greaterThan(startTime));
+    expect(
+      [
+        for (var i = 0; i < before.length; i++)
+          (second.game.players[i].pos - before[i]).length > 0.5,
+      ].any((moved) => moved),
+      isTrue,
+    );
+  });
 }

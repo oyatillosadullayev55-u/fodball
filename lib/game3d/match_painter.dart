@@ -8,13 +8,56 @@ import 'vec3.dart';
 
 /// 3D o'yin sahnasi: stadion, maydon, o'yinchilar, to'p.
 class MatchPainter extends CustomPainter {
-  MatchPainter(this.game)
-      : homeColor = const Color(0xFFF5F5F5),
-        awayColor = const Color(0xFF9C1F2E);
+  MatchPainter(this.game);
 
   final MatchGame game;
-  final Color homeColor;
-  final Color awayColor;
+
+  static const _skinTones = [
+    Color(0xFFE8B98E),
+    Color(0xFFC98B5E),
+    Color(0xFF9C6437),
+    Color(0xFF74482A),
+    Color(0xFFF2C9A4),
+    Color(0xFFB5784C),
+  ];
+
+  static const _homeKit = _Kit(
+    jersey: Color(0xFFFFFFFF),
+    jerseyDark: Color(0xFFC9D4E6),
+    shorts: Color(0xFF14213C),
+    socks: Color(0xFFF4F7FF),
+    trim: Color(0xFF16233F),
+    number: Color(0xFF16233F),
+  );
+  static const _awayKit = _Kit(
+    jersey: Color(0xFFE93B4F),
+    jerseyDark: Color(0xFF8C1224),
+    shorts: Color(0xFFF3F5FA),
+    socks: Color(0xFFE93B4F),
+    trim: Color(0xFFFFE4E8),
+    number: Color(0xFFFFFFFF),
+  );
+  static const _homeGkKit = _Kit(
+    jersey: Color(0xFF25D6A6),
+    jerseyDark: Color(0xFF0E8F6E),
+    shorts: Color(0xFF0B1426),
+    socks: Color(0xFF25D6A6),
+    trim: Color(0xFF04261C),
+    number: Color(0xFF04261C),
+  );
+  static const _awayGkKit = _Kit(
+    jersey: Color(0xFFFFC542),
+    jerseyDark: Color(0xFFD99312),
+    shorts: Color(0xFF1B1B22),
+    socks: Color(0xFFFFC542),
+    trim: Color(0xFF3A2A02),
+    number: Color(0xFF3A2A02),
+  );
+
+  _Kit _kitFor(MatchPlayer p) {
+    if (p.isGk) return p.team == 0 ? _homeGkKit : _awayGkKit;
+    return p.team == 0 ? _homeKit : _awayKit;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -35,6 +78,22 @@ class MatchPainter extends CustomPainter {
 
     _ball(canvas, proj);
     _confetti(canvas, proj);
+    _vignette(canvas, size);
+  }
+
+  void _vignette(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.55);
+    final radius = math.max(size.width, size.height) * 0.78;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0, 0.1),
+          radius: 0.9,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.38)],
+          stops: const [0.55, 1.0],
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -47,63 +106,129 @@ class MatchPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF03060F),
+            const Color(0xFF02040B),
             const Color(0xFF0A1830),
-            const Color(0xFF0D1E3A),
+            const Color(0xFF102545),
           ],
         ).createShader(Offset.zero & size),
     );
-    // Prozhektor yorug'liklari.
-    for (final fx in [0.15, 0.5, 0.85]) {
+    // Prozhektor halolari (gradient — blur'dan tezroq).
+    for (final fx in [0.12, 0.5, 0.88]) {
+      final center = Offset(size.width * fx, -size.height * 0.05);
+      final radius = size.height * 0.55;
       canvas.drawCircle(
-        Offset(size.width * fx, -size.height * 0.15),
-        size.height * 0.5,
+        center,
+        radius,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.05)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+          ..shader = RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.10),
+              Colors.white.withValues(alpha: 0.02),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ).createShader(Rect.fromCircle(center: center, radius: radius)),
       );
+    }
+    // Yorug'lik ustunlari.
+    final beam = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withValues(alpha: 0.09),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.8));
+    for (final fx in [0.12, 0.5, 0.88]) {
+      final x = size.width * fx;
+      final path = Path()
+        ..moveTo(x - 6, 0)
+        ..lineTo(x + 6, 0)
+        ..lineTo(x + size.width * 0.16, size.height * 0.8)
+        ..lineTo(x - size.width * 0.16, size.height * 0.8)
+        ..close();
+      canvas.drawPath(path, beam);
     }
   }
 
   void _stands(Canvas canvas, Size size, Projector proj) {
-    // Tribuna maydon atrofida: proyeksiya qilingan to'rtburchak zanjiri.
-    final l = MatchGame.pitchL + 6;
-    final w = MatchGame.pitchW + 6;
-    final corners = [
+    // Tashqi tribuna halqasi.
+    final outer = _ringPath(proj, 20);
+    if (outer == null) return;
+    canvas.drawPath(
+      outer,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF080D1A), Color(0xFF121A2E)],
+        ).createShader(Offset.zero & size),
+    );
+    // Ichki (pastki) tribuna.
+    final inner = _ringPath(proj, 7);
+    if (inner == null) return;
+    canvas.drawPath(inner, Paint()..color = const Color(0xFF1A2440));
+    canvas.drawPath(
+      inner,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.05)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // Tomoshabinlar — ikki qator.
+    final rand = math.Random(7);
+    final crowd = Paint();
+    for (var i = 0; i < 260; i++) {
+      final x = (rand.nextDouble() * 2 - 1) * (MatchGame.pitchL + 16);
+      final side = rand.nextBool() ? -1 : 1;
+      final tier = rand.nextBool();
+      final z = side *
+          (MatchGame.pitchW + (tier ? 12 : 7) + rand.nextDouble() * 7);
+      final p = V3(x, 0.4 + rand.nextDouble() * 2.4, z);
+      final o = proj.project(p);
+      if (o == null) continue;
+      final s = proj.scaleAt(p);
+      final tint = rand.nextDouble();
+      crowd.color = (tint > 0.92
+              ? const Color(0xFFFF4D5E)
+              : tint > 0.84
+                  ? const Color(0xFF4D7CFF)
+                  : Color.lerp(
+                      const Color(0xFF232E48),
+                      const Color(0xFF56658C),
+                      rand.nextDouble(),
+                    )!)
+          .withValues(alpha: 0.55);
+      canvas.drawCircle(o, (0.16 * s).clamp(0.6, 3.2), crowd);
+    }
+
+    // Reklama to'sig'i.
+    _lineOnGround(canvas, proj, [
+      V3(-MatchGame.pitchL - 3, 0, -MatchGame.pitchW - 3),
+      V3(MatchGame.pitchL + 3, 0, -MatchGame.pitchW - 3),
+      V3(MatchGame.pitchL + 3, 0, MatchGame.pitchW + 3),
+      V3(-MatchGame.pitchL - 3, 0, MatchGame.pitchW + 3),
+    ], close: true);
+  }
+
+  Path? _ringPath(Projector proj, double grow) {
+    final l = MatchGame.pitchL + grow;
+    final w = MatchGame.pitchW + grow;
+    final pts = [
       V3(-l, 0, -w),
       V3(l, 0, -w),
       V3(l, 0, w),
       V3(-l, 0, w),
     ].map(proj.project).toList();
-    if (corners.any((c) => c == null)) return;
-    final path = Path()
-      ..moveTo(corners[0]!.dx, corners[0]!.dy)
-      ..lineTo(corners[1]!.dx, corners[1]!.dy)
-      ..lineTo(corners[2]!.dx, corners[2]!.dy)
-      ..lineTo(corners[3]!.dx, corners[3]!.dy)
+    if (pts.any((p) => p == null)) return null;
+    return Path()
+      ..moveTo(pts[0]!.dx, pts[0]!.dy)
+      ..lineTo(pts[1]!.dx, pts[1]!.dy)
+      ..lineTo(pts[2]!.dx, pts[2]!.dy)
+      ..lineTo(pts[3]!.dx, pts[3]!.dy)
       ..close();
-    canvas.drawPath(
-      path,
-      Paint()..color = const Color(0xFF131A2C),
-    );
-
-    // Semsimon auditoriya nuqtalari.
-    final crowd = Paint();
-    final rand = math.Random(7);
-    for (var i = 0; i < 130; i++) {
-      final x = (rand.nextDouble() * 2 - 1) * (l + 4);
-      final side = rand.nextBool() ? -1 : 1;
-      final z = side * (w + rand.nextDouble() * 5);
-      final o = proj.project(V3(x, 0.3 + rand.nextDouble() * 2.5, z));
-      if (o == null) continue;
-      final s = proj.scaleAt(V3(x, 0, z));
-      crowd.color = Color.lerp(
-        const Color(0xFF2A3550),
-        const Color(0xFF4A5878),
-        rand.nextDouble(),
-      )!.withValues(alpha: 0.5);
-      canvas.drawCircle(o, (0.18 * s).clamp(0.5, 3.5), crowd);
-    }
   }
 
   Path? _pitchPath(Projector proj, double grow) {
@@ -143,6 +268,26 @@ class MatchPainter extends CustomPainter {
 
     final outline = _pitchPath(proj, 0);
     if (outline != null) {
+      // Stadion chiroqlari hovuzi.
+      final c = proj.project(V3.zero);
+      if (c != null) {
+        final pool = Rect.fromCenter(
+          center: c,
+          width: MatchGame.pitchL * 1.9 * proj.scaleAt(V3.zero),
+          height: MatchGame.pitchW * 1.4 * proj.scaleAt(V3.zero),
+        );
+        canvas.drawPath(
+          outline,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.07),
+                Colors.white.withValues(alpha: 0.0),
+              ],
+              stops: const [0.0, 1.0],
+            ).createShader(pool),
+        );
+      }
       canvas.drawPath(
         outline,
         Paint()
@@ -277,139 +422,355 @@ class MatchPainter extends CustomPainter {
 
   // ---------------------------------------------------------------------------
 
+  Color _skinFor(MatchPlayer p) =>
+      _skinTones[(p.index * 5 + p.team * 2) % _skinTones.length];
+
+  Color _hairFor(MatchPlayer p) {
+    const hair = [
+      Color(0xFF17120D),
+      Color(0xFF2B1B10),
+      Color(0xFF101018),
+      Color(0xFF4A2C15),
+      Color(0xFF1A1A1A),
+    ];
+    return hair[(p.index * 3 + p.team) % hair.length];
+  }
+
   void _player(Canvas canvas, Projector proj, MatchPlayer p) {
     final o = proj.project(p.pos);
     if (o == null) return;
     final s = proj.scaleAt(p.pos);
-    final jersey = p.team == 0 ? homeColor : awayColor;
+    if (s <= 0) return;
+
+    final kit = _kitFor(p);
     final isUser = p.team == 0 && p.index == game.controlled;
 
-    // Soyasi.
+    // Perspektiv masshtab, lekin o'yinchi juda kichrayib ketmasin.
+    final h = math.max(1.85 * s, 15.5);
+    final speed01 = (p.vel.length / 8.0).clamp(0.0, 1.0);
+    final swing = math.sin(p.anim) * h * 0.085 * (0.3 + speed01);
+    final bob = (1 - math.cos(p.anim * 2)) * h * 0.012 * speed01;
+    final lean = math.sin(p.facing) * h * 0.04;
+
+    final groundY = o.dy;
+    final footY = groundY - bob;
+    final cx = o.dx + lean;
+    final headR = h * 0.105;
+    final headCy = footY - h * 0.845;
+    final shoulderY = footY - h * 0.70;
+    final hipY = footY - h * 0.40;
+    final torsoW = h * 0.235;
+    final skin = _skinFor(p);
+
+    // Soya.
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(o.dx, o.dy + 0.02 * s),
-        width: 0.7 * s,
-        height: 0.28 * s,
+        center: Offset(o.dx, groundY + 0.02 * s),
+        width: h * 0.72,
+        height: h * 0.24,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.35),
+      Paint()..color = Colors.black.withValues(alpha: 0.34),
     );
 
-    final h = 1.8 * s; // bo'yi pikselda
-    final wBody = 0.62 * s;
+    // Oyoqlar: paypoq + butsa.
+    final legPaint = Paint()
+      ..color = kit.socks
+      ..strokeWidth = h * 0.072
+      ..strokeCap = StrokeCap.round;
+    final bootPaint = Paint()..color = const Color(0xFF0E121C);
 
-    // Oyoqlar.
-    final legPaint = Paint()..color = const Color(0xFF1A2438);
-    canvas.drawRect(
-      Rect.fromLTWH(o.dx - wBody * 0.32, o.dy - h * 0.42, wBody * 0.24, h * 0.42),
-      legPaint,
+    void leg(double side, double phase) {
+      final x = cx + side * h * 0.052 + swing * phase;
+      final hip = Offset(x - swing * phase * 0.4, hipY + h * 0.02);
+      final ankle = Offset(x, footY - h * 0.045);
+      canvas.drawLine(hip, ankle, legPaint);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(ankle.dx + side * h * 0.018, footY - h * 0.018),
+          width: h * 0.105,
+          height: h * 0.055,
+        ),
+        bootPaint,
+      );
+    }
+
+    leg(-1, 1);
+    leg(1, -1);
+
+    // Qo'llar (tananing orqasida).
+    final armPaint = Paint()
+      ..color = kit.jersey
+      ..strokeWidth = h * 0.052
+      ..strokeCap = StrokeCap.round;
+
+    void arm(double side, double phase) {
+      final sx = cx + side * torsoW * 0.5;
+      final ex = sx + side * h * 0.045 + swing * phase * 0.5;
+      final ey = shoulderY + h * 0.235;
+      canvas.drawLine(Offset(sx, shoulderY + h * 0.035), Offset(ex, ey), armPaint);
+      canvas.drawCircle(
+        Offset(ex, ey),
+        h * 0.033,
+        Paint()..color = skin,
+      );
+    }
+
+    arm(-1, -1);
+    arm(1, 1);
+
+    // Shorts.
+    final shortsRect = Rect.fromCenter(
+      center: Offset(cx, hipY + h * 0.015),
+      width: torsoW * 1.02,
+      height: h * 0.155,
     );
-    canvas.drawRect(
-      Rect.fromLTWH(o.dx + wBody * 0.08, o.dy - h * 0.42, wBody * 0.24, h * 0.42),
-      legPaint,
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(shortsRect, Radius.circular(h * 0.035)),
+      Paint()..color = kit.shorts,
     );
 
     // Tana (forma).
-    final bodyRect = Rect.fromLTWH(o.dx - wBody / 2, o.dy - h * 0.82, wBody, h * 0.44);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bodyRect, Radius.circular(wBody * 0.28)),
-      Paint()..color = jersey,
-    );
-    // Kollar.
-    final armPaint = Paint()..color = jersey.withValues(alpha: 0.9);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx - wBody * 0.72, o.dy - h * 0.8, wBody * 0.22, h * 0.34),
-        Radius.circular(wBody * 0.1),
-      ),
-      armPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx + wBody * 0.5, o.dy - h * 0.8, wBody * 0.22, h * 0.34),
-        Radius.circular(wBody * 0.1),
-      ),
-      armPaint,
-    );
-
-    // Bosh.
-    final headR = 0.21 * s;
-    canvas.drawCircle(
-      Offset(o.dx, o.dy - h * 0.82 - headR),
-      headR,
-      Paint()..color = const Color(0xFFC8996C),
-    );
-
-    // Raqam (orqada).
-    final numberStyle = TextStyle(
-      fontSize: (0.26 * s).clamp(6, 14),
-      fontWeight: FontWeight.w900,
-      color: p.team == 0 ? const Color(0xFF232B3E) : Colors.white,
-    );
-    final tp = TextPainter(
-      text: TextSpan(text: '${p.number}', style: numberStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(o.dx - tp.width / 2, o.dy - h * 0.68));
-
-    if (isUser) {
-      // Boshqarilayotgan o'yinchi halqasi.
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(o.dx, o.dy + 0.05 * s),
-          width: 1.0 * s,
-          height: 0.4 * s,
+    final torso = Path()
+      ..moveTo(cx - torsoW * 0.5, shoulderY + h * 0.015)
+      ..quadraticBezierTo(
+          cx - torsoW * 0.56, hipY, cx - torsoW * 0.5, hipY + h * 0.005)
+      ..lineTo(cx + torsoW * 0.5, hipY + h * 0.005)
+      ..quadraticBezierTo(
+          cx + torsoW * 0.56, hipY, cx + torsoW * 0.5, shoulderY + h * 0.015)
+      ..close();
+    canvas.drawPath(
+      torso,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [kit.jersey, kit.jerseyDark],
+        ).createShader(
+          Rect.fromLTRB(
+              cx - torsoW, shoulderY, cx + torsoW, hipY + h * 0.01),
         ),
-        Paint()
-          ..color = AppColors.lime
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      // Ism yorlig'i.
-      final label = TextPainter(
+    );
+    // Kontur — maysa ustida aniq ko'rinish.
+    canvas.drawPath(
+      torso,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.38)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.8, h * 0.014),
+    );
+    // Forma detali (yoqa chizig'i).
+    canvas.drawLine(
+      Offset(cx - torsoW * 0.34, shoulderY + h * 0.075),
+      Offset(cx + torsoW * 0.34, shoulderY + h * 0.075),
+      Paint()
+        ..color = kit.trim.withValues(alpha: 0.85)
+        ..strokeWidth = math.max(0.7, h * 0.022),
+    );
+
+    // Raqam.
+    if (h >= 19) {
+      final tp = TextPainter(
         text: TextSpan(
-          text: p.name,
+          text: '${p.number}',
           style: TextStyle(
-            fontSize: (0.24 * s).clamp(8, 13),
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
+            fontFamily: 'Roboto',
+            fontSize: h * 0.115,
+            height: 1,
+            fontWeight: FontWeight.w900,
+            color: kit.number.withValues(alpha: 0.9),
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      label.paint(canvas, Offset(o.dx - label.width / 2, o.dy - h - headR - label.height - 4));
+      tp.paint(
+        canvas,
+        Offset(cx - tp.width / 2, shoulderY + h * 0.135),
+      );
+    }
+
+    // Bo'yin + bosh.
+    canvas.drawLine(
+      Offset(cx, shoulderY + h * 0.01),
+      Offset(cx, headCy + headR * 0.7),
+      Paint()
+        ..color = skin
+        ..strokeWidth = h * 0.05,
+    );
+    final headRect = Rect.fromCircle(center: Offset(cx, headCy), radius: headR);
+    canvas.drawCircle(
+      Offset(cx, headCy),
+      headR,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.4, -0.5),
+          colors: [_lighten(skin, 0.12), skin, _darken(skin, 0.12)],
+          stops: const [0.0, 0.6, 1.0],
+        ).createShader(headRect),
+    );
+    // Soch.
+    canvas.drawArc(
+      headRect.inflate(headR * 0.06),
+      math.pi * 1.02,
+      math.pi * 0.96,
+      true,
+      Paint()..color = _hairFor(p),
+    );
+    canvas.drawCircle(
+      Offset(cx, headCy),
+      headR,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.6, h * 0.008),
+    );
+
+    if (isUser) {
+      // Boshqarilayotgan o'yinchi: yorug' halqa + strelka.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(o.dx, groundY + 0.02 * s),
+          width: h * 0.95,
+          height: h * 0.34,
+        ),
+        Paint()
+          ..color = AppColors.lime.withValues(alpha: 0.95)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.2, h * 0.022),
+      );
+      final tipY = headCy - headR * 2.6;
+      final arrow = Path()
+        ..moveTo(cx - h * 0.085, tipY - h * 0.09)
+        ..lineTo(cx + h * 0.085, tipY - h * 0.09)
+        ..lineTo(cx, tipY)
+        ..close();
+      canvas.drawPath(arrow, Paint()..color = AppColors.lime);
+
+      // Ism yorlig'i.
+      final label = TextPainter(
+        text: TextSpan(
+          text: p.name,
+          style: const TextStyle(
+            fontFamily: 'Roboto',
+            fontSize: 9,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: h * 3.4);
+      final pill = Rect.fromCenter(
+        center: Offset(o.dx, tipY - h * 0.22),
+        width: label.width + 10,
+        height: label.height + 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(pill, Radius.circular(pill.height / 2)),
+        Paint()..color = Colors.black.withValues(alpha: 0.62),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(pill, Radius.circular(pill.height / 2)),
+        Paint()
+          ..color = AppColors.lime.withValues(alpha: 0.75)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+      label.paint(canvas, Offset(pill.left + 5, pill.top + 2));
     }
   }
+
+  Color _lighten(Color c, double t) => Color.lerp(c, Colors.white, t)!;
+  Color _darken(Color c, double t) => Color.lerp(c, Colors.black, t)!;
 
   void _ball(Canvas canvas, Projector proj) {
     final ground = proj.project(V3(game.ball.x, 0, game.ball.z));
     final o = proj.project(game.ball);
     if (o == null || ground == null) return;
     final s = proj.scaleAt(game.ball);
-    final r = math.max(2.0, MatchGame.ballR * s);
-
-    // Soyasi — balandlikka qarab kichraydi.
+    final r = math.max(2.8, MatchGame.ballR * s * 2.4);
     final hgt = game.ball.y;
+    final shrink = 1 / (1 + hgt * 0.55);
+
+    // Soya — balandlikka qarab kichrayadi.
     canvas.drawOval(
       Rect.fromCenter(
         center: ground,
-        width: r * 2 * (1 / (1 + hgt * 0.6)),
-        height: r * 0.8 * (1 / (1 + hgt * 0.6)),
+        width: r * 2.3 * shrink,
+        height: r * 0.9 * shrink,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.3),
+      Paint()..color = Colors.black.withValues(alpha: 0.32),
     );
 
-    canvas.drawCircle(o, r, Paint()..color = Colors.white);
+    // Yorug'lik hoshiyasi.
+    final glow = Rect.fromCircle(center: o, radius: r * 1.6);
+    canvas.drawCircle(
+      o,
+      r * 1.6,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(glow),
+    );
+
+    // Asosiy shar.
     canvas.drawCircle(
       o,
       r,
       Paint()
-        ..color = const Color(0xFF2A3350)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.4),
+          colors: const [
+            Colors.white,
+            Color(0xFFEDF1F9),
+            Color(0xFFB9C4D6),
+          ],
+          stops: const [0.0, 0.65, 1.0],
+        ).createShader(Rect.fromCircle(center: o, radius: r)),
     );
-    canvas.drawCircle(o - Offset(r * 0.3, r * 0.2), r * 0.35,
-        Paint()..color = const Color(0xFF2A3350).withValues(alpha: 0.6));
+
+    // Qora panellar.
+    final patch = Paint()..color = const Color(0xFF1B2334);
+    _polygon(canvas, o, r * 0.40, -math.pi / 2, 5, patch);
+    if (r > 3.5) {
+      for (var i = 0; i < 3; i++) {
+        final a = -math.pi / 2 + i * math.pi * 2 / 3 + 0.5;
+        canvas.drawCircle(
+          Offset(o.dx + math.cos(a) * r * 0.74, o.dy + math.sin(a) * r * 0.74),
+          r * 0.16,
+          patch,
+        );
+      }
+    }
+
+    canvas.drawCircle(
+      o,
+      r,
+      Paint()
+        ..color = const Color(0xFF2A3350).withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.8, r * 0.09),
+    );
+  }
+
+  void _polygon(Canvas canvas, Offset c, double r, double rot, int sides,
+      Paint paint) {
+    final path = Path();
+    for (var i = 0; i < sides; i++) {
+      final a = rot + i * math.pi * 2 / sides;
+      final pt = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
+      if (i == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   void _confetti(Canvas canvas, Projector proj) {
@@ -430,4 +791,23 @@ class MatchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MatchPainter oldDelegate) => true;
+}
+
+/// Jamoa formasi ranglari.
+class _Kit {
+  const _Kit({
+    required this.jersey,
+    required this.jerseyDark,
+    required this.shorts,
+    required this.socks,
+    required this.trim,
+    required this.number,
+  });
+
+  final Color jersey;
+  final Color jerseyDark;
+  final Color shorts;
+  final Color socks;
+  final Color trim;
+  final Color number;
 }

@@ -4,7 +4,7 @@
 
 - Flutter 3.47 / Dart 3.13
 - Tashqi 3D paketlar yo‘q — o‘zimizning proyeksiya dvigateli
-- `flutter analyze`: 0 issue · `flutter test`: 33 test o‘tadi
+- `flutter analyze`: 0 issue · `flutter test`: 35 test o‘tadi
 
 ---
 
@@ -34,11 +34,11 @@
 - `lib/theme/app_colors.dart`
 - `lib/theme/app_theme.dart`
 - `lib/widgets/ui.dart`
+- `pubspec.yaml`
 - `test/game_test.dart`
 - `test/match_test.dart`
 - `test/screenshot_test.dart`
 - `test/widget_test.dart`
-- `pubspec.yaml`
 
 ---
 
@@ -401,7 +401,6 @@ abstract final class MockData {
     (label: 'Goalkeeper', value: 0.96, color: AppColors.gold),
   ];
 }
-
 ```
 
 ## `lib/game3d/game_painter.dart`
@@ -1121,7 +1120,6 @@ class GamePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant GamePainter oldDelegate) => true;
 }
-
 ```
 
 ## `lib/game3d/match_game.dart`
@@ -1179,6 +1177,9 @@ class MatchPlayer {
   V3 pos = V3.zero;
   V3 vel = V3.zero;
   double facing = 0;
+
+  /// Yugurish sikli fazasi (radian).
+  double anim = 0;
 
   double get speed => 5.9 + (pace - 60) / 40 * 2.6;
 }
@@ -1470,7 +1471,7 @@ class MatchGame extends ChangeNotifier {
     _aiThink(dt);
     _stepPlayers(dt);
     _stepBall(dt);
-    _possession();
+    _possession(dt);
     _selectNearestUser();
     notifyListeners();
   }
@@ -1609,6 +1610,7 @@ class MatchGame extends ChangeNotifier {
         }
       }
       p.pos = p.pos + p.vel * dt;
+      p.anim += p.vel.length * dt * 2.4;
       p.pos = V3(
         p.pos.x.clamp(-pitchL - 2, pitchL + 2),
         0,
@@ -1646,23 +1648,23 @@ class MatchGame extends ChangeNotifier {
   // To'p
   // ---------------------------------------------------------------------------
 
-  void _possession() {
+  void _possession(double dt) {
     if (ownerTeam >= 0) {
       final p = _owner()!;
       // Oldinda sirpanib yuradi.
       final ahead = V3(math.sin(p.facing), 0, math.cos(p.facing));
       ball = V3(p.pos.x + ahead.x * 0.55, ballR, p.pos.z + ahead.z * 0.55);
       ballVel = p.vel;
-      // Raqib yondashib to'pni olishi mumkin.
+      // Raqib yondashib to'pni olishi mumkin (vaqtga bog'liq).
       for (final q in players) {
         if (q.team == p.team) continue;
         final d = (q.pos - ball).length;
-        final stealP = q.isGk ? 0.5 : 0.32;
-        if (d < 0.62 && _rng.nextDouble() < stealP) {
+        final stealRate = q.isGk ? 3.2 : 1.7;
+        if (d < 0.62 && _rng.nextDouble() < stealRate * dt) {
           ownerTeam = q.team;
           ownerIndex = q.index;
           if (q.team == 0) controlled = q.index;
-          
+
           return;
         }
       }
@@ -1779,11 +1781,13 @@ class MatchGame extends ChangeNotifier {
 
   Camera3D camera() {
     final s = shake > 0 ? math.sin(time * 60) * shake * 0.4 : 0.0;
-    final cx = (ball.x * 0.5).clamp(-22.0, 22.0);
+    final cx = (ball.x * 0.45).clamp(-24.0, 24.0);
+    // Kamera to'pni vertikal bo'yicha ham kuzatadi — o'yinchi ko'rinmay qolmaydi.
+    final cz = (ball.z * 0.5).clamp(-17.0, 17.0);
     return Camera3D(
-      eye: V3(cx + s, 38, -62),
-      target: V3(cx * 1.15, 0, 2),
-      fovY: 0.78,
+      eye: V3(cx + s, 28, cz - 42),
+      target: V3(cx * 1.1, 0, cz + 5),
+      fovY: 0.58,
     );
   }
 }
@@ -1792,7 +1796,6 @@ extension on V3 {
   V3 copyWith({double? x, double? y, double? z}) =>
       V3(x ?? this.x, y ?? this.y, z ?? this.z);
 }
-
 ```
 
 ## `lib/game3d/match_painter.dart`
@@ -1808,13 +1811,56 @@ import 'vec3.dart';
 
 /// 3D o'yin sahnasi: stadion, maydon, o'yinchilar, to'p.
 class MatchPainter extends CustomPainter {
-  MatchPainter(this.game)
-      : homeColor = const Color(0xFFF5F5F5),
-        awayColor = const Color(0xFF9C1F2E);
+  MatchPainter(this.game);
 
   final MatchGame game;
-  final Color homeColor;
-  final Color awayColor;
+
+  static const _skinTones = [
+    Color(0xFFE8B98E),
+    Color(0xFFC98B5E),
+    Color(0xFF9C6437),
+    Color(0xFF74482A),
+    Color(0xFFF2C9A4),
+    Color(0xFFB5784C),
+  ];
+
+  static const _homeKit = _Kit(
+    jersey: Color(0xFFFFFFFF),
+    jerseyDark: Color(0xFFC9D4E6),
+    shorts: Color(0xFF14213C),
+    socks: Color(0xFFF4F7FF),
+    trim: Color(0xFF16233F),
+    number: Color(0xFF16233F),
+  );
+  static const _awayKit = _Kit(
+    jersey: Color(0xFFE93B4F),
+    jerseyDark: Color(0xFF8C1224),
+    shorts: Color(0xFFF3F5FA),
+    socks: Color(0xFFE93B4F),
+    trim: Color(0xFFFFE4E8),
+    number: Color(0xFFFFFFFF),
+  );
+  static const _homeGkKit = _Kit(
+    jersey: Color(0xFF25D6A6),
+    jerseyDark: Color(0xFF0E8F6E),
+    shorts: Color(0xFF0B1426),
+    socks: Color(0xFF25D6A6),
+    trim: Color(0xFF04261C),
+    number: Color(0xFF04261C),
+  );
+  static const _awayGkKit = _Kit(
+    jersey: Color(0xFFFFC542),
+    jerseyDark: Color(0xFFD99312),
+    shorts: Color(0xFF1B1B22),
+    socks: Color(0xFFFFC542),
+    trim: Color(0xFF3A2A02),
+    number: Color(0xFF3A2A02),
+  );
+
+  _Kit _kitFor(MatchPlayer p) {
+    if (p.isGk) return p.team == 0 ? _homeGkKit : _awayGkKit;
+    return p.team == 0 ? _homeKit : _awayKit;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1835,6 +1881,22 @@ class MatchPainter extends CustomPainter {
 
     _ball(canvas, proj);
     _confetti(canvas, proj);
+    _vignette(canvas, size);
+  }
+
+  void _vignette(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.55);
+    final radius = math.max(size.width, size.height) * 0.78;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0, 0.1),
+          radius: 0.9,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.38)],
+          stops: const [0.55, 1.0],
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1847,63 +1909,129 @@ class MatchPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF03060F),
+            const Color(0xFF02040B),
             const Color(0xFF0A1830),
-            const Color(0xFF0D1E3A),
+            const Color(0xFF102545),
           ],
         ).createShader(Offset.zero & size),
     );
-    // Prozhektor yorug'liklari.
-    for (final fx in [0.15, 0.5, 0.85]) {
+    // Prozhektor halolari (gradient — blur'dan tezroq).
+    for (final fx in [0.12, 0.5, 0.88]) {
+      final center = Offset(size.width * fx, -size.height * 0.05);
+      final radius = size.height * 0.55;
       canvas.drawCircle(
-        Offset(size.width * fx, -size.height * 0.15),
-        size.height * 0.5,
+        center,
+        radius,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.05)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+          ..shader = RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.10),
+              Colors.white.withValues(alpha: 0.02),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ).createShader(Rect.fromCircle(center: center, radius: radius)),
       );
+    }
+    // Yorug'lik ustunlari.
+    final beam = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withValues(alpha: 0.09),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.8));
+    for (final fx in [0.12, 0.5, 0.88]) {
+      final x = size.width * fx;
+      final path = Path()
+        ..moveTo(x - 6, 0)
+        ..lineTo(x + 6, 0)
+        ..lineTo(x + size.width * 0.16, size.height * 0.8)
+        ..lineTo(x - size.width * 0.16, size.height * 0.8)
+        ..close();
+      canvas.drawPath(path, beam);
     }
   }
 
   void _stands(Canvas canvas, Size size, Projector proj) {
-    // Tribuna maydon atrofida: proyeksiya qilingan to'rtburchak zanjiri.
-    final l = MatchGame.pitchL + 6;
-    final w = MatchGame.pitchW + 6;
-    final corners = [
+    // Tashqi tribuna halqasi.
+    final outer = _ringPath(proj, 20);
+    if (outer == null) return;
+    canvas.drawPath(
+      outer,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF080D1A), Color(0xFF121A2E)],
+        ).createShader(Offset.zero & size),
+    );
+    // Ichki (pastki) tribuna.
+    final inner = _ringPath(proj, 7);
+    if (inner == null) return;
+    canvas.drawPath(inner, Paint()..color = const Color(0xFF1A2440));
+    canvas.drawPath(
+      inner,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.05)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // Tomoshabinlar — ikki qator.
+    final rand = math.Random(7);
+    final crowd = Paint();
+    for (var i = 0; i < 260; i++) {
+      final x = (rand.nextDouble() * 2 - 1) * (MatchGame.pitchL + 16);
+      final side = rand.nextBool() ? -1 : 1;
+      final tier = rand.nextBool();
+      final z = side *
+          (MatchGame.pitchW + (tier ? 12 : 7) + rand.nextDouble() * 7);
+      final p = V3(x, 0.4 + rand.nextDouble() * 2.4, z);
+      final o = proj.project(p);
+      if (o == null) continue;
+      final s = proj.scaleAt(p);
+      final tint = rand.nextDouble();
+      crowd.color = (tint > 0.92
+              ? const Color(0xFFFF4D5E)
+              : tint > 0.84
+                  ? const Color(0xFF4D7CFF)
+                  : Color.lerp(
+                      const Color(0xFF232E48),
+                      const Color(0xFF56658C),
+                      rand.nextDouble(),
+                    )!)
+          .withValues(alpha: 0.55);
+      canvas.drawCircle(o, (0.16 * s).clamp(0.6, 3.2), crowd);
+    }
+
+    // Reklama to'sig'i.
+    _lineOnGround(canvas, proj, [
+      V3(-MatchGame.pitchL - 3, 0, -MatchGame.pitchW - 3),
+      V3(MatchGame.pitchL + 3, 0, -MatchGame.pitchW - 3),
+      V3(MatchGame.pitchL + 3, 0, MatchGame.pitchW + 3),
+      V3(-MatchGame.pitchL - 3, 0, MatchGame.pitchW + 3),
+    ], close: true);
+  }
+
+  Path? _ringPath(Projector proj, double grow) {
+    final l = MatchGame.pitchL + grow;
+    final w = MatchGame.pitchW + grow;
+    final pts = [
       V3(-l, 0, -w),
       V3(l, 0, -w),
       V3(l, 0, w),
       V3(-l, 0, w),
     ].map(proj.project).toList();
-    if (corners.any((c) => c == null)) return;
-    final path = Path()
-      ..moveTo(corners[0]!.dx, corners[0]!.dy)
-      ..lineTo(corners[1]!.dx, corners[1]!.dy)
-      ..lineTo(corners[2]!.dx, corners[2]!.dy)
-      ..lineTo(corners[3]!.dx, corners[3]!.dy)
+    if (pts.any((p) => p == null)) return null;
+    return Path()
+      ..moveTo(pts[0]!.dx, pts[0]!.dy)
+      ..lineTo(pts[1]!.dx, pts[1]!.dy)
+      ..lineTo(pts[2]!.dx, pts[2]!.dy)
+      ..lineTo(pts[3]!.dx, pts[3]!.dy)
       ..close();
-    canvas.drawPath(
-      path,
-      Paint()..color = const Color(0xFF131A2C),
-    );
-
-    // Semsimon auditoriya nuqtalari.
-    final crowd = Paint();
-    final rand = math.Random(7);
-    for (var i = 0; i < 130; i++) {
-      final x = (rand.nextDouble() * 2 - 1) * (l + 4);
-      final side = rand.nextBool() ? -1 : 1;
-      final z = side * (w + rand.nextDouble() * 5);
-      final o = proj.project(V3(x, 0.3 + rand.nextDouble() * 2.5, z));
-      if (o == null) continue;
-      final s = proj.scaleAt(V3(x, 0, z));
-      crowd.color = Color.lerp(
-        const Color(0xFF2A3550),
-        const Color(0xFF4A5878),
-        rand.nextDouble(),
-      )!.withValues(alpha: 0.5);
-      canvas.drawCircle(o, (0.18 * s).clamp(0.5, 3.5), crowd);
-    }
   }
 
   Path? _pitchPath(Projector proj, double grow) {
@@ -1943,6 +2071,26 @@ class MatchPainter extends CustomPainter {
 
     final outline = _pitchPath(proj, 0);
     if (outline != null) {
+      // Stadion chiroqlari hovuzi.
+      final c = proj.project(V3.zero);
+      if (c != null) {
+        final pool = Rect.fromCenter(
+          center: c,
+          width: MatchGame.pitchL * 1.9 * proj.scaleAt(V3.zero),
+          height: MatchGame.pitchW * 1.4 * proj.scaleAt(V3.zero),
+        );
+        canvas.drawPath(
+          outline,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.07),
+                Colors.white.withValues(alpha: 0.0),
+              ],
+              stops: const [0.0, 1.0],
+            ).createShader(pool),
+        );
+      }
       canvas.drawPath(
         outline,
         Paint()
@@ -2077,139 +2225,355 @@ class MatchPainter extends CustomPainter {
 
   // ---------------------------------------------------------------------------
 
+  Color _skinFor(MatchPlayer p) =>
+      _skinTones[(p.index * 5 + p.team * 2) % _skinTones.length];
+
+  Color _hairFor(MatchPlayer p) {
+    const hair = [
+      Color(0xFF17120D),
+      Color(0xFF2B1B10),
+      Color(0xFF101018),
+      Color(0xFF4A2C15),
+      Color(0xFF1A1A1A),
+    ];
+    return hair[(p.index * 3 + p.team) % hair.length];
+  }
+
   void _player(Canvas canvas, Projector proj, MatchPlayer p) {
     final o = proj.project(p.pos);
     if (o == null) return;
     final s = proj.scaleAt(p.pos);
-    final jersey = p.team == 0 ? homeColor : awayColor;
+    if (s <= 0) return;
+
+    final kit = _kitFor(p);
     final isUser = p.team == 0 && p.index == game.controlled;
 
-    // Soyasi.
+    // Perspektiv masshtab, lekin o'yinchi juda kichrayib ketmasin.
+    final h = math.max(1.85 * s, 15.5);
+    final speed01 = (p.vel.length / 8.0).clamp(0.0, 1.0);
+    final swing = math.sin(p.anim) * h * 0.085 * (0.3 + speed01);
+    final bob = (1 - math.cos(p.anim * 2)) * h * 0.012 * speed01;
+    final lean = math.sin(p.facing) * h * 0.04;
+
+    final groundY = o.dy;
+    final footY = groundY - bob;
+    final cx = o.dx + lean;
+    final headR = h * 0.105;
+    final headCy = footY - h * 0.845;
+    final shoulderY = footY - h * 0.70;
+    final hipY = footY - h * 0.40;
+    final torsoW = h * 0.235;
+    final skin = _skinFor(p);
+
+    // Soya.
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(o.dx, o.dy + 0.02 * s),
-        width: 0.7 * s,
-        height: 0.28 * s,
+        center: Offset(o.dx, groundY + 0.02 * s),
+        width: h * 0.72,
+        height: h * 0.24,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.35),
+      Paint()..color = Colors.black.withValues(alpha: 0.34),
     );
 
-    final h = 1.8 * s; // bo'yi pikselda
-    final wBody = 0.62 * s;
+    // Oyoqlar: paypoq + butsa.
+    final legPaint = Paint()
+      ..color = kit.socks
+      ..strokeWidth = h * 0.072
+      ..strokeCap = StrokeCap.round;
+    final bootPaint = Paint()..color = const Color(0xFF0E121C);
 
-    // Oyoqlar.
-    final legPaint = Paint()..color = const Color(0xFF1A2438);
-    canvas.drawRect(
-      Rect.fromLTWH(o.dx - wBody * 0.32, o.dy - h * 0.42, wBody * 0.24, h * 0.42),
-      legPaint,
+    void leg(double side, double phase) {
+      final x = cx + side * h * 0.052 + swing * phase;
+      final hip = Offset(x - swing * phase * 0.4, hipY + h * 0.02);
+      final ankle = Offset(x, footY - h * 0.045);
+      canvas.drawLine(hip, ankle, legPaint);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(ankle.dx + side * h * 0.018, footY - h * 0.018),
+          width: h * 0.105,
+          height: h * 0.055,
+        ),
+        bootPaint,
+      );
+    }
+
+    leg(-1, 1);
+    leg(1, -1);
+
+    // Qo'llar (tananing orqasida).
+    final armPaint = Paint()
+      ..color = kit.jersey
+      ..strokeWidth = h * 0.052
+      ..strokeCap = StrokeCap.round;
+
+    void arm(double side, double phase) {
+      final sx = cx + side * torsoW * 0.5;
+      final ex = sx + side * h * 0.045 + swing * phase * 0.5;
+      final ey = shoulderY + h * 0.235;
+      canvas.drawLine(Offset(sx, shoulderY + h * 0.035), Offset(ex, ey), armPaint);
+      canvas.drawCircle(
+        Offset(ex, ey),
+        h * 0.033,
+        Paint()..color = skin,
+      );
+    }
+
+    arm(-1, -1);
+    arm(1, 1);
+
+    // Shorts.
+    final shortsRect = Rect.fromCenter(
+      center: Offset(cx, hipY + h * 0.015),
+      width: torsoW * 1.02,
+      height: h * 0.155,
     );
-    canvas.drawRect(
-      Rect.fromLTWH(o.dx + wBody * 0.08, o.dy - h * 0.42, wBody * 0.24, h * 0.42),
-      legPaint,
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(shortsRect, Radius.circular(h * 0.035)),
+      Paint()..color = kit.shorts,
     );
 
     // Tana (forma).
-    final bodyRect = Rect.fromLTWH(o.dx - wBody / 2, o.dy - h * 0.82, wBody, h * 0.44);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bodyRect, Radius.circular(wBody * 0.28)),
-      Paint()..color = jersey,
-    );
-    // Kollar.
-    final armPaint = Paint()..color = jersey.withValues(alpha: 0.9);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx - wBody * 0.72, o.dy - h * 0.8, wBody * 0.22, h * 0.34),
-        Radius.circular(wBody * 0.1),
-      ),
-      armPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(o.dx + wBody * 0.5, o.dy - h * 0.8, wBody * 0.22, h * 0.34),
-        Radius.circular(wBody * 0.1),
-      ),
-      armPaint,
-    );
-
-    // Bosh.
-    final headR = 0.21 * s;
-    canvas.drawCircle(
-      Offset(o.dx, o.dy - h * 0.82 - headR),
-      headR,
-      Paint()..color = const Color(0xFFC8996C),
-    );
-
-    // Raqam (orqada).
-    final numberStyle = TextStyle(
-      fontSize: (0.26 * s).clamp(6, 14),
-      fontWeight: FontWeight.w900,
-      color: p.team == 0 ? const Color(0xFF232B3E) : Colors.white,
-    );
-    final tp = TextPainter(
-      text: TextSpan(text: '${p.number}', style: numberStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(o.dx - tp.width / 2, o.dy - h * 0.68));
-
-    if (isUser) {
-      // Boshqarilayotgan o'yinchi halqasi.
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(o.dx, o.dy + 0.05 * s),
-          width: 1.0 * s,
-          height: 0.4 * s,
+    final torso = Path()
+      ..moveTo(cx - torsoW * 0.5, shoulderY + h * 0.015)
+      ..quadraticBezierTo(
+          cx - torsoW * 0.56, hipY, cx - torsoW * 0.5, hipY + h * 0.005)
+      ..lineTo(cx + torsoW * 0.5, hipY + h * 0.005)
+      ..quadraticBezierTo(
+          cx + torsoW * 0.56, hipY, cx + torsoW * 0.5, shoulderY + h * 0.015)
+      ..close();
+    canvas.drawPath(
+      torso,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [kit.jersey, kit.jerseyDark],
+        ).createShader(
+          Rect.fromLTRB(
+              cx - torsoW, shoulderY, cx + torsoW, hipY + h * 0.01),
         ),
-        Paint()
-          ..color = AppColors.lime
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      // Ism yorlig'i.
-      final label = TextPainter(
+    );
+    // Kontur — maysa ustida aniq ko'rinish.
+    canvas.drawPath(
+      torso,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.38)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.8, h * 0.014),
+    );
+    // Forma detali (yoqa chizig'i).
+    canvas.drawLine(
+      Offset(cx - torsoW * 0.34, shoulderY + h * 0.075),
+      Offset(cx + torsoW * 0.34, shoulderY + h * 0.075),
+      Paint()
+        ..color = kit.trim.withValues(alpha: 0.85)
+        ..strokeWidth = math.max(0.7, h * 0.022),
+    );
+
+    // Raqam.
+    if (h >= 19) {
+      final tp = TextPainter(
         text: TextSpan(
-          text: p.name,
+          text: '${p.number}',
           style: TextStyle(
-            fontSize: (0.24 * s).clamp(8, 13),
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
+            fontFamily: 'Roboto',
+            fontSize: h * 0.115,
+            height: 1,
+            fontWeight: FontWeight.w900,
+            color: kit.number.withValues(alpha: 0.9),
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      label.paint(canvas, Offset(o.dx - label.width / 2, o.dy - h - headR - label.height - 4));
+      tp.paint(
+        canvas,
+        Offset(cx - tp.width / 2, shoulderY + h * 0.135),
+      );
+    }
+
+    // Bo'yin + bosh.
+    canvas.drawLine(
+      Offset(cx, shoulderY + h * 0.01),
+      Offset(cx, headCy + headR * 0.7),
+      Paint()
+        ..color = skin
+        ..strokeWidth = h * 0.05,
+    );
+    final headRect = Rect.fromCircle(center: Offset(cx, headCy), radius: headR);
+    canvas.drawCircle(
+      Offset(cx, headCy),
+      headR,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.4, -0.5),
+          colors: [_lighten(skin, 0.12), skin, _darken(skin, 0.12)],
+          stops: const [0.0, 0.6, 1.0],
+        ).createShader(headRect),
+    );
+    // Soch.
+    canvas.drawArc(
+      headRect.inflate(headR * 0.06),
+      math.pi * 1.02,
+      math.pi * 0.96,
+      true,
+      Paint()..color = _hairFor(p),
+    );
+    canvas.drawCircle(
+      Offset(cx, headCy),
+      headR,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.6, h * 0.008),
+    );
+
+    if (isUser) {
+      // Boshqarilayotgan o'yinchi: yorug' halqa + strelka.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(o.dx, groundY + 0.02 * s),
+          width: h * 0.95,
+          height: h * 0.34,
+        ),
+        Paint()
+          ..color = AppColors.lime.withValues(alpha: 0.95)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.2, h * 0.022),
+      );
+      final tipY = headCy - headR * 2.6;
+      final arrow = Path()
+        ..moveTo(cx - h * 0.085, tipY - h * 0.09)
+        ..lineTo(cx + h * 0.085, tipY - h * 0.09)
+        ..lineTo(cx, tipY)
+        ..close();
+      canvas.drawPath(arrow, Paint()..color = AppColors.lime);
+
+      // Ism yorlig'i.
+      final label = TextPainter(
+        text: TextSpan(
+          text: p.name,
+          style: const TextStyle(
+            fontFamily: 'Roboto',
+            fontSize: 9,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: h * 3.4);
+      final pill = Rect.fromCenter(
+        center: Offset(o.dx, tipY - h * 0.22),
+        width: label.width + 10,
+        height: label.height + 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(pill, Radius.circular(pill.height / 2)),
+        Paint()..color = Colors.black.withValues(alpha: 0.62),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(pill, Radius.circular(pill.height / 2)),
+        Paint()
+          ..color = AppColors.lime.withValues(alpha: 0.75)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+      label.paint(canvas, Offset(pill.left + 5, pill.top + 2));
     }
   }
+
+  Color _lighten(Color c, double t) => Color.lerp(c, Colors.white, t)!;
+  Color _darken(Color c, double t) => Color.lerp(c, Colors.black, t)!;
 
   void _ball(Canvas canvas, Projector proj) {
     final ground = proj.project(V3(game.ball.x, 0, game.ball.z));
     final o = proj.project(game.ball);
     if (o == null || ground == null) return;
     final s = proj.scaleAt(game.ball);
-    final r = math.max(2.0, MatchGame.ballR * s);
-
-    // Soyasi — balandlikka qarab kichraydi.
+    final r = math.max(2.8, MatchGame.ballR * s * 2.4);
     final hgt = game.ball.y;
+    final shrink = 1 / (1 + hgt * 0.55);
+
+    // Soya — balandlikka qarab kichrayadi.
     canvas.drawOval(
       Rect.fromCenter(
         center: ground,
-        width: r * 2 * (1 / (1 + hgt * 0.6)),
-        height: r * 0.8 * (1 / (1 + hgt * 0.6)),
+        width: r * 2.3 * shrink,
+        height: r * 0.9 * shrink,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.3),
+      Paint()..color = Colors.black.withValues(alpha: 0.32),
     );
 
-    canvas.drawCircle(o, r, Paint()..color = Colors.white);
+    // Yorug'lik hoshiyasi.
+    final glow = Rect.fromCircle(center: o, radius: r * 1.6);
+    canvas.drawCircle(
+      o,
+      r * 1.6,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(glow),
+    );
+
+    // Asosiy shar.
     canvas.drawCircle(
       o,
       r,
       Paint()
-        ..color = const Color(0xFF2A3350)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.4),
+          colors: const [
+            Colors.white,
+            Color(0xFFEDF1F9),
+            Color(0xFFB9C4D6),
+          ],
+          stops: const [0.0, 0.65, 1.0],
+        ).createShader(Rect.fromCircle(center: o, radius: r)),
     );
-    canvas.drawCircle(o - Offset(r * 0.3, r * 0.2), r * 0.35,
-        Paint()..color = const Color(0xFF2A3350).withValues(alpha: 0.6));
+
+    // Qora panellar.
+    final patch = Paint()..color = const Color(0xFF1B2334);
+    _polygon(canvas, o, r * 0.40, -math.pi / 2, 5, patch);
+    if (r > 3.5) {
+      for (var i = 0; i < 3; i++) {
+        final a = -math.pi / 2 + i * math.pi * 2 / 3 + 0.5;
+        canvas.drawCircle(
+          Offset(o.dx + math.cos(a) * r * 0.74, o.dy + math.sin(a) * r * 0.74),
+          r * 0.16,
+          patch,
+        );
+      }
+    }
+
+    canvas.drawCircle(
+      o,
+      r,
+      Paint()
+        ..color = const Color(0xFF2A3350).withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(0.8, r * 0.09),
+    );
+  }
+
+  void _polygon(Canvas canvas, Offset c, double r, double rot, int sides,
+      Paint paint) {
+    final path = Path();
+    for (var i = 0; i < sides; i++) {
+      final a = rot + i * math.pi * 2 / sides;
+      final pt = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
+      if (i == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   void _confetti(Canvas canvas, Projector proj) {
@@ -2232,6 +2596,24 @@ class MatchPainter extends CustomPainter {
   bool shouldRepaint(covariant MatchPainter oldDelegate) => true;
 }
 
+/// Jamoa formasi ranglari.
+class _Kit {
+  const _Kit({
+    required this.jersey,
+    required this.jerseyDark,
+    required this.shorts,
+    required this.socks,
+    required this.trim,
+    required this.number,
+  });
+
+  final Color jersey;
+  final Color jerseyDark;
+  final Color shorts;
+  final Color socks;
+  final Color trim;
+  final Color number;
+}
 ```
 
 ## `lib/game3d/penalty_game.dart`
@@ -2644,7 +3026,6 @@ class PenaltyGame extends ChangeNotifier {
     confetti.removeWhere((c) => c.life <= 0 || c.pos.y < -0.5);
   }
 }
-
 ```
 
 ## `lib/game3d/vec3.dart`
@@ -2740,7 +3121,6 @@ class Projector {
     return camera.eye + dir * t;
   }
 }
-
 ```
 
 ## `lib/main.dart`
@@ -2781,7 +3161,6 @@ class FodballApp extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/models/models.dart`
@@ -3026,7 +3405,6 @@ class TransferTarget {
   final int price;
   final String sellingClub;
 }
-
 ```
 
 ## `lib/screens/achievements_screen.dart`
@@ -3281,7 +3659,6 @@ class _AchievementRow extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/career_screen.dart`
@@ -3516,7 +3893,6 @@ class _ScreenHeader extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/champions_screen.dart`
@@ -3644,7 +4020,6 @@ class ChampionsScreen extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/game_screen.dart`
@@ -4378,7 +4753,6 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/home_screen.dart`
@@ -4402,6 +4776,9 @@ import 'training_screen.dart';
 import 'transfers_screen.dart';
 
 /// Asosiy menyu — Football Legends uslubida.
+///
+/// Ekran hech qachon scroll qilmaydi: barcha bo'limlarga faqat tugma bosish
+/// orqali o'tiladi va tarkib har qanday ekran o'lchamiga sig'adi.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -4422,37 +4799,50 @@ class HomeScreen extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  const Color(0xFF02050C).withValues(alpha: 0.55),
-                  const Color(0xFF02050C).withValues(alpha: 0.25),
-                  const Color(0xFF02050C).withValues(alpha: 0.82),
+                  const Color(0xFF02050C).withValues(alpha: 0.72),
+                  const Color(0xFF02050C).withValues(alpha: 0.48),
+                  const Color(0xFF02050C).withValues(alpha: 0.88),
                 ],
               ),
             ),
           ),
           SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 1150;
-                final content = wide
-                    ? _WideLayout(onPlay: () => _startMatch(context))
-                    : _NarrowLayout(onPlay: () => _startMatch(context));
-                return Column(
-                  children: [
-                    const _TopBar(),
-                    Expanded(child: content),
-                  ],
-                );
-              },
+            child: Column(
+              children: [
+                const _TopBar(),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final wide = w >= 1120;
+                      final compact = w >= 620;
+                      return Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          wide ? 16 : 12,
+                          wide ? 8 : 4,
+                          wide ? 16 : 12,
+                          wide ? 14 : 10,
+                        ),
+                        child: wide
+                            ? const _WideBody()
+                            : (compact
+                                ? const _CompactBody()
+                                : const _PortraitBody()),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  void _startMatch(BuildContext context) {
-    pushScreen(context, const MatchScreen(match: MockData.nextMatch));
-  }
+void _startMatch(BuildContext context) {
+  pushScreen(context, const MatchScreen(match: MockData.nextMatch));
 }
 
 // -----------------------------------------------------------------------------
@@ -4471,20 +4861,24 @@ class _TopBar extends StatelessWidget {
         animation: state,
         builder: (context, _) => LayoutBuilder(
           builder: (context, constraints) {
-            final showProfile = constraints.maxWidth >= 780;
+            final showProfile = constraints.maxWidth >= 860;
+            final narrow = constraints.maxWidth < 480;
             return Row(
               children: [
-                const _Logo(),
+                _Logo(showText: !narrow),
                 if (showProfile) ...[
                   const SizedBox(width: 14),
                   const _Profile(),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   _LevelBadge(
                       level: state.level, xp: state.xp, xpMax: state.xpMax),
                 ],
                 const Spacer(),
-                const Flexible(child: CurrencyBar()),
-                const SizedBox(width: 10),
+                Flexible(
+                  flex: 2,
+                  child: CurrencyBar(compact: narrow),
+                ),
+                SizedBox(width: narrow ? 8 : 10),
                 _IconBadge(
                   icon: Icons.notifications_rounded,
                   count: state.notifications,
@@ -4508,7 +4902,9 @@ class _TopBar extends StatelessWidget {
 }
 
 class _Logo extends StatelessWidget {
-  const _Logo();
+  const _Logo({this.showText = true});
+
+  final bool showText;
 
   @override
   Widget build(BuildContext context) {
@@ -4516,46 +4912,61 @@ class _Logo extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.gold.withValues(alpha: 0.28),
+                AppColors.gold.withValues(alpha: 0.06),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.55)),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withValues(alpha: 0.18),
+                blurRadius: 14,
+              ),
+            ],
           ),
           child: const Icon(
             Icons.workspace_premium_rounded,
             color: AppColors.gold,
-            size: 20,
+            size: 22,
           ),
         ),
-        const SizedBox(width: 8),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'FOOTBALL',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.6,
-                color: AppColors.text,
+        if (showText) ...[
+          const SizedBox(width: 9),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'FOOTBALL',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.6,
+                  color: AppColors.text,
+                ),
               ),
-            ),
-            Text(
-              'LEGENDS',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.6,
-                color: AppColors.gold,
+              Text(
+                'LEGENDS',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.6,
+                  color: AppColors.gold,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -4568,9 +4979,9 @@ class _Profile extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = GameStateScope.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.fromLTRB(5, 4, 10, 4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: Colors.black.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
@@ -4578,49 +4989,51 @@ class _Profile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 30,
+            height: 30,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.lime.withValues(alpha: 0.5),
-                  AppColors.blue.withValues(alpha: 0.5),
-                ],
+                colors: [AppColors.lime, AppColors.blue],
               ),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
               image: const DecorationImage(
                 image: AssetImage('assets/images/hero_player.png'),
                 fit: BoxFit.cover,
-                alignment: Alignment(0, -0.4),
+                alignment: Alignment(0, -0.35),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                state.userName,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.text,
+          const SizedBox(width: 7),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  state.userName,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.text,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                'Manager',
-                style: TextStyle(fontSize: 9.5, color: AppColors.muted),
-              ),
-            ],
+                const SizedBox(height: 2),
+                const Text(
+                  'Manager',
+                  style: TextStyle(fontSize: 9, color: AppColors.muted),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
-          ClubCrest(club: state.userClub, size: 28),
+          ClubCrest(club: state.userClub, size: 24),
         ],
       ),
     );
@@ -4639,12 +5052,25 @@ class _LevelBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'LV. $level',
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            color: AppColors.text,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.blue.withValues(alpha: 0.28),
+                AppColors.violet.withValues(alpha: 0.18),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.blue.withValues(alpha: 0.45)),
+          ),
+          child: Text(
+            'LV. $level',
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              color: AppColors.text,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -4653,7 +5079,7 @@ class _LevelBadge extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 84,
+              width: 92,
               height: 8,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.12),
@@ -4698,227 +5124,49 @@ class _IconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Icon(icon, size: 17, color: AppColors.text),
-            if (count > 0)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: AppColors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(minWidth: 13, minHeight: 13),
-                  child: Center(
-                    child: Text(
-                      '$count',
-                      style: const TextStyle(
-                        fontSize: 7.5,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Chap menyu
-// -----------------------------------------------------------------------------
-
-class _MenuItem {
-  const _MenuItem({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-    this.highlighted = false,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool highlighted;
-}
-
-class _SideMenu extends StatelessWidget {
-  const _SideMenu({required this.onPlay});
-
-  final VoidCallback onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <_MenuItem>[
-      _MenuItem(
-        title: 'Career Mode',
-        subtitle: 'Build your legacy',
-        icon: Icons.sports_soccer_rounded,
-        onTap: () => pushScreen(context, const CareerScreen()),
-        highlighted: true,
-      ),
-      _MenuItem(
-        title: 'Tournaments',
-        subtitle: 'Win prestigious cups',
-        icon: Icons.emoji_events_rounded,
-        onTap: () => pushScreen(context, const TournamentsScreen()),
-      ),
-      _MenuItem(
-        title: 'Play Match',
-        subtitle: 'Quick & Online',
-        icon: Icons.play_circle_rounded,
-        onTap: onPlay,
-      ),
-      _MenuItem(
-        title: 'Store',
-        subtitle: 'Get amazing rewards',
-        icon: Icons.shopping_cart_rounded,
-        onTap: () => pushScreen(context, const StoreScreen()),
-      ),
-      _MenuItem(
-        title: 'My Club',
-        subtitle: 'Manage your team',
-        icon: Icons.bar_chart_rounded,
-        onTap: () => pushScreen(context, const TeamScreen()),
-      ),
-      _MenuItem(
-        title: 'Settings',
-        subtitle: 'Customize game',
-        icon: Icons.settings_rounded,
-        onTap: () => pushScreen(context, const SettingsScreen()),
-      ),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final item in items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _MenuButton(item: item),
-          ),
-      ],
-    );
-  }
-}
-
-class _MenuButton extends StatelessWidget {
-  const _MenuButton({required this.item});
-
-  final _MenuItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final highlight = item.highlighted;
     return Material(
       color: Colors.transparent,
+      shape: const CircleBorder(),
       child: InkWell(
-        onTap: item.onTap,
-        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        customBorder: const CircleBorder(),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            gradient: highlight
-                ? const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [Color(0xFFFFD23F), Color(0xFFF5A623)],
-                  )
-                : null,
-            color: highlight ? null : const Color(0xFF0B1426).withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: highlight
-                  ? AppColors.gold
-                  : Colors.white.withValues(alpha: 0.10),
-            ),
-            boxShadow: highlight
-                ? [
-                    BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                    ),
-                  ]
-                : null,
+            color: Colors.black.withValues(alpha: 0.45),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
-          child: Row(
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: highlight
-                      ? Colors.black.withValues(alpha: 0.2)
-                      : item.title == 'Play Match'
-                          ? AppColors.gold.withValues(alpha: 0.18)
-                          : Colors.white.withValues(alpha: 0.06),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  item.icon,
-                  size: 18,
-                  color: highlight
-                      ? const Color(0xFF241A02)
-                      : item.title == 'Play Match'
-                          ? AppColors.gold
-                          : AppColors.lime,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                        color: highlight ? const Color(0xFF241A02) : AppColors.text,
+              Icon(icon, size: 17, color: AppColors.text),
+              if (count > 0)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: AppColors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 13, minHeight: 13),
+                    child: Center(
+                      child: Text(
+                        '$count',
+                        style: const TextStyle(
+                          fontSize: 7.5,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.subtitle,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: highlight
-                            ? const Color(0xFF241A02).withValues(alpha: 0.75)
-                            : AppColors.muted,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: highlight
-                    ? const Color(0xFF241A02)
-                    : Colors.white.withValues(alpha: 0.35),
-              ),
             ],
           ),
         ),
@@ -4928,65 +5176,419 @@ class _MenuButton extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Keng layout (desktop / planshet)
+// Menyu bandlari
 // -----------------------------------------------------------------------------
 
-class _WideLayout extends StatelessWidget {
-  const _WideLayout({required this.onPlay});
+class _MenuEntry {
+  const _MenuEntry({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+    this.subtitle = '',
+    this.accent = AppColors.lime,
+  });
 
-  final VoidCallback onPlay;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color accent;
+}
+
+List<_MenuEntry> _menuEntries(BuildContext context) => [
+      _MenuEntry(
+        title: 'Career Mode',
+        subtitle: 'Build your legacy',
+        icon: Icons.sports_soccer_rounded,
+        accent: AppColors.gold,
+        onTap: () => pushScreen(context, const CareerScreen()),
+      ),
+      _MenuEntry(
+        title: 'Tournaments',
+        subtitle: 'Win prestigious cups',
+        icon: Icons.emoji_events_rounded,
+        accent: AppColors.gold,
+        onTap: () => pushScreen(context, const TournamentsScreen()),
+      ),
+      _MenuEntry(
+        title: 'My Club',
+        subtitle: 'Manage your team',
+        icon: Icons.shield_rounded,
+        accent: AppColors.blue,
+        onTap: () => pushScreen(context, const TeamScreen()),
+      ),
+      _MenuEntry(
+        title: 'Store',
+        subtitle: 'Packs & rewards',
+        icon: Icons.shopping_bag_rounded,
+        accent: AppColors.violet,
+        onTap: () => pushScreen(context, const StoreScreen()),
+      ),
+      _MenuEntry(
+        title: 'Transfers',
+        subtitle: 'Buy & sell stars',
+        icon: Icons.handshake_rounded,
+        accent: AppColors.lime,
+        onTap: () => pushScreen(context, const TransfersScreen()),
+      ),
+      _MenuEntry(
+        title: 'Training',
+        subtitle: 'Improve your squad',
+        icon: Icons.fitness_center_rounded,
+        accent: AppColors.red,
+        onTap: () => pushScreen(context, const TrainingScreen()),
+      ),
+    ];
+
+// -----------------------------------------------------------------------------
+// Layoutlar — scroll yo'q, faqat tugmalar
+// -----------------------------------------------------------------------------
+
+class _WideBody extends StatelessWidget {
+  const _WideBody();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 262,
-                  child: _SideMenu(onPlay: onPlay),
-                ),
-                const SizedBox(width: 14),
-                const Expanded(child: _HeroPanel()),
-                const SizedBox(width: 14),
-                const SizedBox(width: 316, child: _RightColumn()),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(width: 258, child: _SideMenu(entries: _menuEntries(context))),
+        const SizedBox(width: 14),
+        Expanded(child: _HeroPanel(onPlay: () => _startMatch(context))),
+        const SizedBox(width: 14),
+        const SizedBox(width: 320, child: _RightColumn()),
+      ],
+    );
+  }
+}
+
+class _CompactBody extends StatelessWidget {
+  const _CompactBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(child: _HeroPanel(onPlay: () => _startMatch(context))),
+        const SizedBox(height: 10),
+        _MenuStrip(entries: _menuEntries(context)),
+      ],
+    );
+  }
+}
+
+class _PortraitBody extends StatelessWidget {
+  const _PortraitBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(child: _HeroPanel(onPlay: () => _startMatch(context))),
+        const SizedBox(height: 10),
+        SizedBox(height: 236, child: _MenuGrid(entries: _menuEntries(context))),
+      ],
+    );
+  }
+}
+
+class _SideMenu extends StatelessWidget {
+  const _SideMenu({required this.entries});
+
+  final List<_MenuEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          Expanded(child: _SideButton(entry: entries[i])),
+        ],
+      ],
+    );
+  }
+}
+
+class _SideButton extends StatelessWidget {
+  const _SideButton({required this.entry});
+
+  final _MenuEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: entry.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                const Color(0xFF16233F).withValues(alpha: 0.92),
+                const Color(0xFF0B1426).withValues(alpha: 0.82),
               ],
             ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.30),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          const _FeatureCards(),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      entry.accent.withValues(alpha: 0.35),
+                      entry.accent.withValues(alpha: 0.08),
+                    ],
+                  ),
+                  border:
+                      Border.all(color: entry.accent.withValues(alpha: 0.5)),
+                ),
+                child: Icon(entry.icon, size: 17, color: entry.accent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.subtitle,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.32),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuStrip extends StatelessWidget {
+  const _MenuStrip({required this.entries});
+
+  final List<_MenuEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 104,
+      child: Row(
+        children: [
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(child: _MenuTile(entry: entries[i], dense: true)),
+          ],
         ],
       ),
     );
   }
 }
 
-class _NarrowLayout extends StatelessWidget {
-  const _NarrowLayout({required this.onPlay});
+class _MenuGrid extends StatelessWidget {
+  const _MenuGrid({required this.entries});
 
-  final VoidCallback onPlay;
+  final List<_MenuEntry> entries;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      child: Column(
-        children: [
-          _SideMenu(onPlay: onPlay),
-          const SizedBox(height: 12),
-          const SizedBox(height: 250, child: _HeroPanel()),
-          const SizedBox(height: 12),
-          const SizedBox(height: 240, child: _NextMatchCard()),
-          const SizedBox(height: 12),
-          const SizedBox(height: 260, child: _StandingsCard()),
-          const SizedBox(height: 12),
-          const _FeatureCards(),
+    return Column(
+      children: [
+        for (var row = 0; row < 3; row++) ...[
+          if (row > 0) const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _MenuTile(entry: entries[row * 2], dense: true)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MenuTile(entry: entries[row * 2 + 1], dense: true),
+                ),
+              ],
+            ),
+          ),
         ],
+      ],
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  const _MenuTile({required this.entry, this.dense = false});
+
+  final _MenuEntry entry;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: entry.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: dense ? 8 : 12,
+            vertical: dense ? 8 : 10,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF1A2744).withValues(alpha: 0.94),
+                const Color(0xFF0A1220).withValues(alpha: 0.90),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.32),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+              BoxShadow(
+                color: entry.accent.withValues(alpha: 0.10),
+                blurRadius: 16,
+              ),
+            ],
+          ),
+          child: dense
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _IconBubble(entry: entry, size: 32, iconSize: 17),
+                    const SizedBox(height: 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        entry.title,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    _IconBubble(entry: entry, size: 34, iconSize: 17),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.title,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            entry.subtitle,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Colors.white.withValues(alpha: 0.30),
+                    ),
+                  ],
+                ),
+        ),
       ),
+    );
+  }
+}
+
+class _IconBubble extends StatelessWidget {
+  const _IconBubble({
+    required this.entry,
+    required this.size,
+    required this.iconSize,
+  });
+
+  final _MenuEntry entry;
+  final double size;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            entry.accent.withValues(alpha: 0.38),
+            entry.accent.withValues(alpha: 0.08),
+          ],
+        ),
+        border: Border.all(color: entry.accent.withValues(alpha: 0.5)),
+      ),
+      child: Icon(entry.icon, size: iconSize, color: entry.accent),
     );
   }
 }
@@ -4996,7 +5598,9 @@ class _NarrowLayout extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class _HeroPanel extends StatelessWidget {
-  const _HeroPanel();
+  const _HeroPanel({required this.onPlay});
+
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -5004,7 +5608,7 @@ class _HeroPanel extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           borderRadius: BorderRadius.circular(22),
         ),
         child: Stack(
@@ -5013,61 +5617,343 @@ class _HeroPanel extends StatelessWidget {
             Image.asset(
               'assets/images/hero_player.png',
               fit: BoxFit.cover,
-              alignment: const Alignment(0.35, -0.3),
+              alignment: const Alignment(0.55, -0.2),
             ),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
                   colors: [
-                    const Color(0xFF02050C).withValues(alpha: 0.75),
-                    const Color(0xFF02050C).withValues(alpha: 0.1),
-                    const Color(0xFF02050C).withValues(alpha: 0.0),
+                    const Color(0xFF02050C).withValues(alpha: 0.94),
+                    const Color(0xFF02050C).withValues(alpha: 0.58),
+                    const Color(0xFF02050C).withValues(alpha: 0.08),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    const Color(0xFF02050C).withValues(alpha: 0.42),
                   ],
                 ),
               ),
             ),
-            const Positioned(
-              left: 26,
-              bottom: 26,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'DREAM BIG',
-                    style: TextStyle(
-                      fontSize: 40,
-                      height: 0.95,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 18),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    'ACHIEVE MORE',
-                    style: TextStyle(
-                      fontSize: 40,
-                      height: 1.05,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      fontStyle: FontStyle.italic,
-                      color: AppColors.gold,
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 18),
-                      ],
-                    ),
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final dense = constraints.maxHeight < 300;
+                  return dense
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _HeroCopy(
+                                dense: true,
+                                onPlay: onPlay,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              flex: 2,
+                              child: _NextUpStrip(dense: true),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _CompetitionChip(),
+                            const Spacer(),
+                            SizedBox(
+                              width: constraints.maxWidth,
+                              child: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: _HeroTitle(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _PlayButton(onTap: onPlay),
+                            const Spacer(),
+                            _NextUpStrip(),
+                          ],
+                        );
+                },
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HeroCopy extends StatelessWidget {
+  const _HeroCopy({required this.dense, required this.onPlay});
+
+  final bool dense;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _CompetitionChip(),
+        SizedBox(height: dense ? 6 : 12),
+        const Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: _HeroTitle())),
+        SizedBox(height: dense ? 8 : 16),
+        _PlayButton(onTap: onPlay, dense: dense),
+      ],
+    );
+  }
+}
+
+class _CompetitionChip extends StatelessWidget {
+  const _CompetitionChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.blue.withValues(alpha: 0.5)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 12, color: AppColors.blue),
+          SizedBox(width: 5),
+          Text(
+            'CHAMPIONS LEAGUE • FINAL',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.1,
+              color: Color(0xFFBFD0FF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroTitle extends StatelessWidget {
+  const _HeroTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'DREAM BIG',
+          style: TextStyle(
+            fontSize: 38,
+            height: 0.95,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+            fontStyle: FontStyle.italic,
+            color: Colors.white,
+            shadows: [Shadow(color: Colors.black87, blurRadius: 18)],
+          ),
+        ),
+        Text(
+          'ACHIEVE MORE',
+          style: TextStyle(
+            fontSize: 38,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+            fontStyle: FontStyle.italic,
+            color: AppColors.gold,
+            shadows: [
+              Shadow(color: Colors.black87, blurRadius: 18),
+              Shadow(color: Color(0x66FFC542), blurRadius: 26),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlayButton extends StatelessWidget {
+  const _PlayButton({required this.onTap, this.dense = false});
+
+  final VoidCallback onTap;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: dense ? 18 : 22,
+            vertical: dense ? 10 : 13,
+          ),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFD75E), Color(0xFFF5A623)],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withValues(alpha: 0.42),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF241A02).withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.play_arrow_rounded,
+                    size: 16, color: Color(0xFF241A02)),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'Start Match',
+                style: TextStyle(
+                  fontSize: dense ? 13 : 14.5,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF241A02),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 18, color: Color(0xFF241A02)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NextUpStrip extends StatelessWidget {
+  const _NextUpStrip({this.dense = false});
+
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    final match = MockData.nextMatch;
+    return Container(
+      padding: EdgeInsets.all(dense ? 10 : 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.55),
+            Colors.black.withValues(alpha: 0.32),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            'NEXT UP',
+            style: TextStyle(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+              color: AppColors.muted,
+            ),
+          ),
+          SizedBox(height: dense ? 5 : 8),
+          Row(
+            children: [
+              Expanded(child: _ClubMini(club: match.home, size: dense ? 26 : 34)),
+              Text(
+                'VS',
+                style: TextStyle(
+                  fontSize: dense ? 11 : 13,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.muted,
+                ),
+              ),
+              Expanded(child: _ClubMini(club: match.away, size: dense ? 26 : 34)),
+            ],
+          ),
+          SizedBox(height: dense ? 5 : 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${match.timeLabel}  •  ${match.dateLabel}',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: dense ? 9 : 10,
+                fontWeight: FontWeight.w700,
+                color: AppColors.muted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClubMini extends StatelessWidget {
+  const _ClubMini({required this.club, required this.size});
+
+  final Club club;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClubCrest(club: club, size: size),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            club.short,
+            style: const TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+              color: AppColors.text,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -5083,9 +5969,9 @@ class _RightColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Column(
       children: [
-        Expanded(child: _NextMatchCard()),
+        Expanded(flex: 5, child: _NextMatchCard()),
         SizedBox(height: 12),
-        Expanded(child: _StandingsCard()),
+        Expanded(flex: 6, child: _StandingsCard()),
       ],
     );
   }
@@ -5102,71 +5988,78 @@ class _NextMatchCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Next Match',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: AppColors.text,
-            ),
-          ),
-          const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          const Row(
             children: [
-              Expanded(child: _MatchClub(club: match.home)),
-              const Text(
-                'VS',
+              Text(
+                'Next Match',
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                  color: AppColors.muted,
+                  color: AppColors.text,
                 ),
               ),
-              Expanded(child: _MatchClub(club: match.away)),
+              Spacer(),
+              Icon(Icons.bolt_rounded, size: 16, color: AppColors.gold),
             ],
           ),
           const SizedBox(height: 6),
-          const Icon(Icons.emoji_events_outlined,
-              size: 15, color: AppColors.blue),
-          const SizedBox(height: 2),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(child: _MatchClub(club: match.home)),
+                const Text(
+                  'VS',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.muted,
+                  ),
+                ),
+                Expanded(child: _MatchClub(club: match.away)),
+              ],
+            ),
+          ),
           Center(
-            child: Text(
-              match.competition,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.6,
-                color: AppColors.blue,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.blue.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.blue.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                match.competition,
+                style: const TextStyle(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.3,
+                  color: Color(0xFFBFD0FF),
+                ),
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.calendar_month_rounded,
-                  size: 13, color: AppColors.muted),
+                  size: 12, color: AppColors.muted),
               const SizedBox(width: 5),
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     '${match.dateLabel}  |  ${match.timeLabel}',
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.muted),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          _StartMatchButton(
-            onTap: () => pushScreen(
-              context,
-              const MatchScreen(match: MockData.nextMatch),
-            ),
-          ),
+          const SizedBox(height: 8),
+          _StartMatchButton(onTap: () => _startMatch(context)),
         ],
       ),
     );
@@ -5183,14 +6076,15 @@ class _MatchClub extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClubCrest(club: club, size: 46),
+        ClubCrest(club: club, size: 44),
         const SizedBox(height: 6),
         Text(
           club.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
             color: AppColors.text,
           ),
@@ -5208,38 +6102,40 @@ class _StartMatchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.gold,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFD75E), Color(0xFFF5A623)],
+            ),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: AppColors.gold.withValues(alpha: 0.35),
                 blurRadius: 14,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Icon(Icons.play_arrow_rounded, size: 18, color: Color(0xFF241A02)),
+              SizedBox(width: 4),
               Text(
-                'Start Match',
+                'Play Match',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF241A02),
                 ),
-              ),
-              SizedBox(width: 6),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: Color(0xFF241A02),
               ),
             ],
           ),
@@ -5274,18 +6170,19 @@ class _StandingsCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    for (var i = 0; i < state.table.length; i++)
-                      _StandingRow(
+              child: Column(
+                children: [
+                  for (var i = 0; i < state.table.length && i < 5; i++)
+                    Expanded(
+                      child: _StandingRow(
                         index: i + 1,
                         standing: state.table[i],
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
+            const SizedBox(height: 4),
             const Align(
               alignment: Alignment.centerRight,
               child: Text(
@@ -5336,15 +6233,15 @@ class _StandingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = standing.isUser;
     return Container(
-      margin: const EdgeInsets.only(bottom: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: isUser
-            ? AppColors.blue.withValues(alpha: 0.28)
+            ? AppColors.blue.withValues(alpha: 0.30)
             : Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(8),
         border: isUser
-            ? Border.all(color: AppColors.blue.withValues(alpha: 0.5))
+            ? Border.all(color: AppColors.blue.withValues(alpha: 0.55))
             : null,
       ),
       child: Row(
@@ -5353,21 +6250,22 @@ class _StandingRow extends StatelessWidget {
             width: 18,
             child: Text(
               '$index',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: AppColors.muted,
+                fontWeight: FontWeight.w900,
+                color: isUser ? AppColors.text : AppColors.muted,
               ),
             ),
           ),
-          ClubCrest(club: standing.club, size: 16),
+          ClubCrest(club: standing.club, size: 15),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               standing.club.name,
               overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: 11,
                 fontWeight: isUser ? FontWeight.w900 : FontWeight.w700,
                 color: AppColors.text,
               ),
@@ -5378,7 +6276,7 @@ class _StandingRow extends StatelessWidget {
             child: Text(
               '${standing.played}',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11.5, color: AppColors.text),
+              style: const TextStyle(fontSize: 11, color: AppColors.text),
             ),
           ),
           SizedBox(
@@ -5387,7 +6285,7 @@ class _StandingRow extends StatelessWidget {
               '${standing.points}',
               textAlign: TextAlign.right,
               style: const TextStyle(
-                fontSize: 11.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
                 color: AppColors.text,
               ),
@@ -5398,194 +6296,6 @@ class _StandingRow extends StatelessWidget {
     );
   }
 }
-
-// -----------------------------------------------------------------------------
-// Pastki kartalar
-// -----------------------------------------------------------------------------
-
-class _FeatureCards extends StatelessWidget {
-  const _FeatureCards();
-
-  @override
-  Widget build(BuildContext context) {
-    const height = 118.0;
-    return SizedBox(
-      height: height,
-      child: Row(
-        children: [
-          Expanded(
-            child: _FeatureCard(
-              title: 'Player Career',
-              subtitle: 'Grow into a legend',
-              image: 'assets/images/hero_player.png',
-              icon: Icons.person_rounded,
-              onTap: () => pushScreen(context, const CareerScreen()),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _FeatureCard(
-              title: 'Transfers',
-              subtitle: 'Buy & Sell Players',
-              image: 'assets/images/stadium_bg.png',
-              icon: Icons.handshake_rounded,
-              onTap: () => pushScreen(context, const TransfersScreen()),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _FeatureCard(
-              title: 'Training',
-              subtitle: 'Improve Your Team',
-              image: 'assets/images/stadium_bg.png',
-              icon: Icons.sports_rounded,
-              onTap: () => pushScreen(context, const TrainingScreen()),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _FeatureCard(
-              title: 'Achievements',
-              subtitle: 'Complete Missions',
-              image: 'assets/images/champions_bg.png',
-              icon: Icons.military_tech_rounded,
-              badge: '12',
-              onTap: () => pushScreen(context, const AchievementsScreen()),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 2,
-            child: _FeatureCard(
-              title: 'CHAMPIONS\nLEAGUE',
-              subtitle: 'The ultimate stage',
-              image: 'assets/images/champions_bg.png',
-              icon: Icons.emoji_events_rounded,
-              onTap: () => pushScreen(context, const TournamentsScreen()),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FeatureCard extends StatelessWidget {
-  const _FeatureCard({
-    required this.title,
-    required this.subtitle,
-    required this.image,
-    required this.icon,
-    required this.onTap,
-    this.badge,
-  });
-
-  final String title;
-  final String subtitle;
-  final String image;
-  final IconData icon;
-  final VoidCallback onTap;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(image, fit: BoxFit.cover),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.1),
-                        Colors.black.withValues(alpha: 0.78),
-                      ],
-                    ),
-                  ),
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: const BoxDecoration(
-                        color: AppColors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        badge!,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          height: 1,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  left: 10,
-                  right: 10,
-                  bottom: 8,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(icon, size: 15, color: AppColors.lime),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              title,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 2,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                height: 1.05,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          color: AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 ```
 
 ## `lib/screens/match_screen.dart`
@@ -5623,6 +6333,7 @@ class _MatchScreenState extends State<MatchScreen>
   bool _rewardsApplied = false;
   bool _championsShown = false;
   bool _gameReady = false;
+  bool _paused = false;
 
   @override
   void initState() {
@@ -5670,6 +6381,7 @@ class _MatchScreenState extends State<MatchScreen>
   void _onTick(Duration elapsed) {
     final dt = (elapsed - _last).inMicroseconds / 1000000.0;
     _last = elapsed;
+    if (_paused) return;
     if (dt > 0 && dt < 0.25) _game.tick(dt);
     if (_game.isFullTime && !_rewardsApplied) _applyResult();
     if (_game.isFullTime &&
@@ -5715,7 +6427,11 @@ class _MatchScreenState extends State<MatchScreen>
           fit: StackFit.expand,
           children: [
             RepaintBoundary(
-              child: CustomPaint(painter: MatchPainter(_game)),
+              child: AnimatedBuilder(
+                animation: _game,
+                builder: (context, _) =>
+                    CustomPaint(painter: MatchPainter(_game)),
+              ),
             ),
             _Hud(game: _game, match: widget.match),
             const _JoystickLayer(),
@@ -5741,8 +6457,10 @@ class _MatchScreenState extends State<MatchScreen>
   }
 
   void _showPause(BuildContext context) {
+    setState(() => _paused = true);
     showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0B1426),
         title: const Text('Pause',
@@ -5751,7 +6469,10 @@ class _MatchScreenState extends State<MatchScreen>
             style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _paused = false);
+            },
             child: const Text('RESUME',
                 style: TextStyle(color: AppColors.lime, fontWeight: FontWeight.w900)),
           ),
@@ -5765,7 +6486,9 @@ class _MatchScreenState extends State<MatchScreen>
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      if (mounted && _paused) setState(() => _paused = false);
+    });
   }
 }
 
@@ -5818,57 +6541,60 @@ class _Scoreboard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClubCrest(club: match.home, size: 22),
-          const SizedBox(width: 8),
-          Text(
-            match.home.short,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              color: AppColors.text,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              '${game.scoreHome} - ${game.scoreAway}',
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClubCrest(club: match.home, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              match.home.short,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: AppColors.text,
               ),
             ),
-          ),
-          Text(
-            match.away.short,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              color: AppColors.text,
-            ),
-          ),
-          const SizedBox(width: 8),
-          ClubCrest(club: match.away, size: 22),
-          Container(
-            margin: const EdgeInsets.only(left: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.red.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              '${game.clockMinute.toString().padLeft(2, '0')}:${game.clockSecond.toString().padLeft(2, '0')}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                color: AppColors.red,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                '${game.scoreHome} - ${game.scoreAway}',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
               ),
             ),
-          ),
-        ],
+            Text(
+              match.away.short,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: AppColors.text,
+              ),
+            ),
+            const SizedBox(width: 8),
+            ClubCrest(club: match.away, size: 22),
+            Container(
+              margin: const EdgeInsets.only(left: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '${game.clockMinute.toString().padLeft(2, '0')}:${game.clockSecond.toString().padLeft(2, '0')}',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.red,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6023,7 +6749,7 @@ class _JoystickLayerState extends State<_JoystickLayer> {
   Offset _knob = Offset.zero;
   bool _active = false;
 
-  static const double _radius = 44;
+  static const double _radius = 46;
 
   MatchGame get _game =>
       context.findAncestorStateOfType<_MatchScreenState>()!._game;
@@ -6033,10 +6759,17 @@ class _JoystickLayerState extends State<_JoystickLayer> {
     return Positioned(
       left: 0,
       bottom: 0,
-      width: MediaQuery.of(context).size.width * 0.45,
-      height: MediaQuery.of(context).size.height * 0.72,
+      width: MediaQuery.of(context).size.width * 0.52,
+      height: MediaQuery.of(context).size.height * 0.82,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
+        onPanDown: (d) {
+          setState(() {
+            _active = true;
+            _center = d.localPosition;
+            _knob = d.localPosition;
+          });
+        },
         onPanStart: (d) {
           setState(() {
             _active = true;
@@ -6051,7 +6784,8 @@ class _JoystickLayerState extends State<_JoystickLayer> {
               dist > _radius ? _center + delta / dist * _radius : d.localPosition;
           setState(() => _knob = clamped);
           final v = (clamped - _center) / _radius;
-          _game.setJoystick(v.dx, v.dy);
+          // Ekranda yuqoriga tortish maydonda +z yo'nalishi.
+          _game.setJoystick(v.dx.clamp(-1.0, 1.0), (-v.dy).clamp(-1.0, 1.0));
         },
         onPanEnd: (_) => _reset(),
         onPanCancel: _reset,
@@ -6059,56 +6793,93 @@ class _JoystickLayerState extends State<_JoystickLayer> {
           children: [
             if (_active) ...[
               Positioned(
-                left: _center.dx - _radius - 14,
-                top: _center.dy - _radius - 14,
+                left: _center.dx - _radius - 16,
+                top: _center.dy - _radius - 16,
                 child: Container(
-                  width: (_radius + 14) * 2,
-                  height: (_radius + 14) * 2,
+                  width: (_radius + 16) * 2,
+                  height: (_radius + 16) * 2,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.06),
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.12),
+                        Colors.white.withValues(alpha: 0.02),
+                      ],
+                    ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withValues(alpha: 0.28),
+                      width: 1.4,
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: _knob.dx - 22,
-                top: _knob.dy - 22,
+                left: _knob.dx - 24,
+                top: _knob.dy - 24,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.25),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.55),
+                        Colors.white.withValues(alpha: 0.22),
+                      ],
+                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black38, blurRadius: 10),
+                    ],
                   ),
                   child: const Icon(
                     Icons.sports_soccer_rounded,
-                    size: 20,
-                    color: Colors.white,
+                    size: 22,
+                    color: Color(0xFF0A1120),
                   ),
                 ),
               ),
             ] else
               Positioned(
-                left: 22,
-                bottom: 96,
+                left: 24,
+                bottom: 108,
                 child: Container(
-                  width: 64,
-                  height: 64,
+                  width: 76,
+                  height: 76,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.05),
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.10),
+                        Colors.black.withValues(alpha: 0.18),
+                      ],
+                    ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: Colors.white.withValues(alpha: 0.22),
+                      width: 1.2,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.gamepad_rounded,
-                    size: 24,
-                    color: Colors.white38,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.open_with_rounded,
+                        size: 22,
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'MOVE',
+                        style: TextStyle(
+                          fontSize: 8,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -6219,13 +6990,30 @@ class _ActionRound extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.22),
-                border: Border.all(color: color.withValues(alpha: 0.85), width: 1.6),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.35, -0.45),
+                  radius: 1.05,
+                  colors: [
+                    Color.lerp(color, Colors.white, 0.35)!,
+                    color.withValues(alpha: 0.30),
+                  ],
+                ),
+                border: Border.all(color: color.withValues(alpha: 0.9), width: 1.6),
                 boxShadow: [
-                  BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 12),
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
-              child: Icon(icon, color: Colors.white, size: size * 0.42),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: size * 0.42,
+                shadows: const [Shadow(color: Colors.black38, blurRadius: 4)],
+              ),
             ),
           ),
         ),
@@ -6289,18 +7077,40 @@ class _SprintButtonState extends State<_SprintButton> {
             height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _down
-                  ? widget.color.withValues(alpha: 0.85)
-                  : widget.color.withValues(alpha: 0.22),
+              gradient: _down
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [widget.color, Color.lerp(widget.color, Colors.white, 0.3)!],
+                    )
+                  : RadialGradient(
+                      center: const Alignment(-0.35, -0.45),
+                      radius: 1.05,
+                      colors: [
+                        Color.lerp(widget.color, Colors.white, 0.35)!,
+                        widget.color.withValues(alpha: 0.30),
+                      ],
+                    ),
               border: Border.all(
-                color: widget.color.withValues(alpha: 0.85),
+                color: widget.color.withValues(alpha: 0.9),
                 width: 1.6,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: _down ? 0.55 : 0.30),
+                  blurRadius: _down ? 20 : 14,
+                  spreadRadius: _down ? 2 : 0,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Icon(
               widget.icon,
               color: _down ? const Color(0xFF241A02) : Colors.white,
               size: widget.size * 0.42,
+              shadows: _down
+                  ? null
+                  : const [Shadow(color: Colors.black38, blurRadius: 4)],
             ),
           ),
         ),
@@ -6493,7 +7303,6 @@ class _RewardChip extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/settings_screen.dart`
@@ -6718,7 +7527,6 @@ class _SwitchTile extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/store_screen.dart`
@@ -7269,7 +8077,6 @@ class _PackReveal extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/team_screen.dart`
@@ -8246,7 +9053,6 @@ class _TacticsTab extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/tournaments_screen.dart`
@@ -8565,7 +9371,6 @@ class _Header extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/training_screen.dart`
@@ -8691,7 +9496,6 @@ class TrainingScreen extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/screens/transfers_screen.dart`
@@ -9006,7 +9810,6 @@ class _SellRow extends StatelessWidget {
     );
   }
 }
-
 ```
 
 ## `lib/state/game_state.dart`
@@ -9256,7 +10059,6 @@ class GameStateScope extends InheritedNotifier<GameState> {
     return scope!.notifier!;
   }
 }
-
 ```
 
 ## `lib/theme/app_colors.dart`
@@ -9288,7 +10090,6 @@ abstract final class AppColors {
   static const pitchAlt = Color(0xFF14502F);
   static const pitchLine = Color(0x66FFFFFF);
 }
-
 ```
 
 ## `lib/theme/app_theme.dart`
@@ -9359,7 +10160,6 @@ abstract final class AppTheme {
     );
   }
 }
-
 ```
 
 ## `lib/widgets/ui.dart`
@@ -9516,7 +10316,6 @@ class CurrencyBar extends StatelessWidget {
               icon: Icons.monetization_on_rounded,
               value: _format(state.coins),
               color: AppColors.gold,
-              onAdd: () => Navigator.of(context).pushNamed('/store'),
             ),
           ),
           if (!compact) const SizedBox(width: 8),
@@ -9526,7 +10325,6 @@ class CurrencyBar extends StatelessWidget {
                 icon: Icons.diamond_rounded,
                 value: _format(state.gems),
                 color: AppColors.violet,
-                onAdd: () => Navigator.of(context).pushNamed('/store'),
               ),
             ),
         ],
@@ -9568,12 +10366,14 @@ class GlassPanel extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
+            Colors.white.withValues(alpha: 0.07),
             const Color(0xFF16233F).withValues(alpha: alpha),
             const Color(0xFF0A1120).withValues(alpha: alpha),
           ],
+          stops: const [0.0, 0.25, 1.0],
         ),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
@@ -9798,7 +10598,98 @@ class PlayerCard extends StatelessWidget {
 void pushScreen(BuildContext context, Widget screen) {
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
 }
+```
 
+## `pubspec.yaml`
+
+```yaml
+name: fodball
+description: "Fodball - football club dashboard built with Flutter."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
 ```
 
 ## `test/game_test.dart`
@@ -9920,7 +10811,6 @@ void main() {
     );
   }
 }
-
 ```
 
 ## `test/match_test.dart`
@@ -10132,7 +11022,6 @@ void main() {
     });
   });
 }
-
 ```
 
 ## `test/screenshot_test.dart`
@@ -10196,6 +11085,18 @@ Future<void> _pump(WidgetTester tester, Size size, Widget screen,
     ),
   );
   if (settle) {
+    // Widget testlarida rasm dekodlash real (fake bo'lmagan) vaqt talab
+    // qiladi, shuning uchun ularni runAsync ichida oldindan yuklaymiz.
+    await tester.runAsync(() async {
+      final context = tester.element(find.byType(MaterialApp));
+      for (final asset in const [
+        'assets/images/hero_player.png',
+        'assets/images/stadium_bg.png',
+        'assets/images/champions_bg.png',
+      ]) {
+        await precacheImage(AssetImage(asset), context);
+      }
+    });
     await tester.pumpAndSettle();
   } else {
     for (var i = 0; i < 180; i++) {
@@ -10239,7 +11140,6 @@ void main() {
         matchesGoldenFile('docs/verify_store.png'));
   });
 }
-
 ```
 
 ## `test/widget_test.dart`
@@ -10247,7 +11147,10 @@ void main() {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fodball/data/mock_data.dart';
+import 'package:fodball/game3d/match_painter.dart';
 import 'package:fodball/main.dart';
+import 'package:fodball/screens/match_screen.dart';
 import 'package:fodball/state/game_state.dart';
 
 Future<void> _pumpAt(WidgetTester tester, Size size) async {
@@ -10288,98 +11191,57 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Home hech qachon scroll qilmaydi, faqat tugma bilan o\'tiladi',
+      (tester) async {
+    await _pumpAt(tester, const Size(360, 780));
+    expect(find.byType(Scrollable), findsNothing);
+
+    await tester.tap(find.text('Start Match'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(MatchScreen), findsOneWidget);
+  });
+
+  testWidgets('Match ko\'rinishi har kadrda yangilanadi va o\'yinchilar yuradi',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      GameStateScope(
+        state: GameState(),
+        child: MaterialApp(home: MatchScreen(match: MockData.nextMatch)),
+      ),
+    );
+
+    MatchPainter currentPainter() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((c) => c.painter)
+        .whereType<MatchPainter>()
+        .single;
+
+    await tester.pump(const Duration(milliseconds: 16));
+    final first = currentPainter();
+    final before = [for (final p in first.game.players) p.pos];
+    final startTime = first.game.time;
+
+    for (var i = 0; i < 150; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final second = currentPainter();
+    // Painter har kadrda yangi bo'ladi — 3D sahna muzlab qolmaydi.
+    expect(identical(first, second), isFalse);
+    expect(second.game.time, greaterThan(startTime));
+    expect(
+      [
+        for (var i = 0; i < before.length; i++)
+          (second.game.players[i].pos - before[i]).length > 0.5,
+      ].any((moved) => moved),
+      isTrue,
+    );
+  });
 }
-
-```
-
-## `pubspec.yaml`
-
-```yaml
-name: fodball
-description: "Fodball - football club dashboard built with Flutter."
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-
-# The following defines the version and build number for your application.
-# A version number is three numbers separated by dots, like 1.2.43
-# followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
-# build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
-
-environment:
-  sdk: ^3.13.4
-
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
-dependencies:
-  flutter:
-    sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^6.0.0
-
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
-flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
-  uses-material-design: true
-
-  assets:
-    - assets/images/
-
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/to/resolution-aware-images
-
-  # For details regarding adding assets from package dependencies, see
-  # https://flutter.dev/to/asset-from-package
-
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
 ```

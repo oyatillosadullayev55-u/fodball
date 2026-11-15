@@ -51,6 +51,9 @@ class MatchPlayer {
   V3 vel = V3.zero;
   double facing = 0;
 
+  /// Yugurish sikli fazasi (radian).
+  double anim = 0;
+
   double get speed => 5.9 + (pace - 60) / 40 * 2.6;
 }
 
@@ -341,7 +344,7 @@ class MatchGame extends ChangeNotifier {
     _aiThink(dt);
     _stepPlayers(dt);
     _stepBall(dt);
-    _possession();
+    _possession(dt);
     _selectNearestUser();
     notifyListeners();
   }
@@ -480,6 +483,7 @@ class MatchGame extends ChangeNotifier {
         }
       }
       p.pos = p.pos + p.vel * dt;
+      p.anim += p.vel.length * dt * 2.4;
       p.pos = V3(
         p.pos.x.clamp(-pitchL - 2, pitchL + 2),
         0,
@@ -517,23 +521,23 @@ class MatchGame extends ChangeNotifier {
   // To'p
   // ---------------------------------------------------------------------------
 
-  void _possession() {
+  void _possession(double dt) {
     if (ownerTeam >= 0) {
       final p = _owner()!;
       // Oldinda sirpanib yuradi.
       final ahead = V3(math.sin(p.facing), 0, math.cos(p.facing));
       ball = V3(p.pos.x + ahead.x * 0.55, ballR, p.pos.z + ahead.z * 0.55);
       ballVel = p.vel;
-      // Raqib yondashib to'pni olishi mumkin.
+      // Raqib yondashib to'pni olishi mumkin (vaqtga bog'liq).
       for (final q in players) {
         if (q.team == p.team) continue;
         final d = (q.pos - ball).length;
-        final stealP = q.isGk ? 0.5 : 0.32;
-        if (d < 0.62 && _rng.nextDouble() < stealP) {
+        final stealRate = q.isGk ? 3.2 : 1.7;
+        if (d < 0.62 && _rng.nextDouble() < stealRate * dt) {
           ownerTeam = q.team;
           ownerIndex = q.index;
           if (q.team == 0) controlled = q.index;
-          
+
           return;
         }
       }
@@ -650,11 +654,13 @@ class MatchGame extends ChangeNotifier {
 
   Camera3D camera() {
     final s = shake > 0 ? math.sin(time * 60) * shake * 0.4 : 0.0;
-    final cx = (ball.x * 0.5).clamp(-22.0, 22.0);
+    final cx = (ball.x * 0.45).clamp(-24.0, 24.0);
+    // Kamera to'pni vertikal bo'yicha ham kuzatadi — o'yinchi ko'rinmay qolmaydi.
+    final cz = (ball.z * 0.5).clamp(-17.0, 17.0);
     return Camera3D(
-      eye: V3(cx + s, 38, -62),
-      target: V3(cx * 1.15, 0, 2),
-      fovY: 0.78,
+      eye: V3(cx + s, 28, cz - 42),
+      target: V3(cx * 1.1, 0, cz + 5),
+      fovY: 0.58,
     );
   }
 }

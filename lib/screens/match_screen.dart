@@ -30,6 +30,7 @@ class _MatchScreenState extends State<MatchScreen>
   bool _rewardsApplied = false;
   bool _championsShown = false;
   bool _gameReady = false;
+  bool _paused = false;
 
   @override
   void initState() {
@@ -77,6 +78,7 @@ class _MatchScreenState extends State<MatchScreen>
   void _onTick(Duration elapsed) {
     final dt = (elapsed - _last).inMicroseconds / 1000000.0;
     _last = elapsed;
+    if (_paused) return;
     if (dt > 0 && dt < 0.25) _game.tick(dt);
     if (_game.isFullTime && !_rewardsApplied) _applyResult();
     if (_game.isFullTime &&
@@ -122,7 +124,11 @@ class _MatchScreenState extends State<MatchScreen>
           fit: StackFit.expand,
           children: [
             RepaintBoundary(
-              child: CustomPaint(painter: MatchPainter(_game)),
+              child: AnimatedBuilder(
+                animation: _game,
+                builder: (context, _) =>
+                    CustomPaint(painter: MatchPainter(_game)),
+              ),
             ),
             _Hud(game: _game, match: widget.match),
             const _JoystickLayer(),
@@ -148,8 +154,10 @@ class _MatchScreenState extends State<MatchScreen>
   }
 
   void _showPause(BuildContext context) {
+    setState(() => _paused = true);
     showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0B1426),
         title: const Text('Pause',
@@ -158,7 +166,10 @@ class _MatchScreenState extends State<MatchScreen>
             style: TextStyle(color: AppColors.muted)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _paused = false);
+            },
             child: const Text('RESUME',
                 style: TextStyle(color: AppColors.lime, fontWeight: FontWeight.w900)),
           ),
@@ -172,7 +183,9 @@ class _MatchScreenState extends State<MatchScreen>
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      if (mounted && _paused) setState(() => _paused = false);
+    });
   }
 }
 
@@ -225,57 +238,60 @@ class _Scoreboard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClubCrest(club: match.home, size: 22),
-          const SizedBox(width: 8),
-          Text(
-            match.home.short,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              color: AppColors.text,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              '${game.scoreHome} - ${game.scoreAway}',
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClubCrest(club: match.home, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              match.home.short,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: AppColors.text,
               ),
             ),
-          ),
-          Text(
-            match.away.short,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              color: AppColors.text,
-            ),
-          ),
-          const SizedBox(width: 8),
-          ClubCrest(club: match.away, size: 22),
-          Container(
-            margin: const EdgeInsets.only(left: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.red.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              '${game.clockMinute.toString().padLeft(2, '0')}:${game.clockSecond.toString().padLeft(2, '0')}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                color: AppColors.red,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                '${game.scoreHome} - ${game.scoreAway}',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
               ),
             ),
-          ),
-        ],
+            Text(
+              match.away.short,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: AppColors.text,
+              ),
+            ),
+            const SizedBox(width: 8),
+            ClubCrest(club: match.away, size: 22),
+            Container(
+              margin: const EdgeInsets.only(left: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '${game.clockMinute.toString().padLeft(2, '0')}:${game.clockSecond.toString().padLeft(2, '0')}',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.red,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -430,7 +446,7 @@ class _JoystickLayerState extends State<_JoystickLayer> {
   Offset _knob = Offset.zero;
   bool _active = false;
 
-  static const double _radius = 44;
+  static const double _radius = 46;
 
   MatchGame get _game =>
       context.findAncestorStateOfType<_MatchScreenState>()!._game;
@@ -440,10 +456,17 @@ class _JoystickLayerState extends State<_JoystickLayer> {
     return Positioned(
       left: 0,
       bottom: 0,
-      width: MediaQuery.of(context).size.width * 0.45,
-      height: MediaQuery.of(context).size.height * 0.72,
+      width: MediaQuery.of(context).size.width * 0.52,
+      height: MediaQuery.of(context).size.height * 0.82,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
+        onPanDown: (d) {
+          setState(() {
+            _active = true;
+            _center = d.localPosition;
+            _knob = d.localPosition;
+          });
+        },
         onPanStart: (d) {
           setState(() {
             _active = true;
@@ -458,7 +481,8 @@ class _JoystickLayerState extends State<_JoystickLayer> {
               dist > _radius ? _center + delta / dist * _radius : d.localPosition;
           setState(() => _knob = clamped);
           final v = (clamped - _center) / _radius;
-          _game.setJoystick(v.dx, v.dy);
+          // Ekranda yuqoriga tortish maydonda +z yo'nalishi.
+          _game.setJoystick(v.dx.clamp(-1.0, 1.0), (-v.dy).clamp(-1.0, 1.0));
         },
         onPanEnd: (_) => _reset(),
         onPanCancel: _reset,
@@ -466,56 +490,93 @@ class _JoystickLayerState extends State<_JoystickLayer> {
           children: [
             if (_active) ...[
               Positioned(
-                left: _center.dx - _radius - 14,
-                top: _center.dy - _radius - 14,
+                left: _center.dx - _radius - 16,
+                top: _center.dy - _radius - 16,
                 child: Container(
-                  width: (_radius + 14) * 2,
-                  height: (_radius + 14) * 2,
+                  width: (_radius + 16) * 2,
+                  height: (_radius + 16) * 2,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.06),
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.12),
+                        Colors.white.withValues(alpha: 0.02),
+                      ],
+                    ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withValues(alpha: 0.28),
+                      width: 1.4,
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: _knob.dx - 22,
-                top: _knob.dy - 22,
+                left: _knob.dx - 24,
+                top: _knob.dy - 24,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.25),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.55),
+                        Colors.white.withValues(alpha: 0.22),
+                      ],
+                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black38, blurRadius: 10),
+                    ],
                   ),
                   child: const Icon(
                     Icons.sports_soccer_rounded,
-                    size: 20,
-                    color: Colors.white,
+                    size: 22,
+                    color: Color(0xFF0A1120),
                   ),
                 ),
               ),
             ] else
               Positioned(
-                left: 22,
-                bottom: 96,
+                left: 24,
+                bottom: 108,
                 child: Container(
-                  width: 64,
-                  height: 64,
+                  width: 76,
+                  height: 76,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.05),
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.10),
+                        Colors.black.withValues(alpha: 0.18),
+                      ],
+                    ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: Colors.white.withValues(alpha: 0.22),
+                      width: 1.2,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.gamepad_rounded,
-                    size: 24,
-                    color: Colors.white38,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.open_with_rounded,
+                        size: 22,
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'MOVE',
+                        style: TextStyle(
+                          fontSize: 8,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -626,13 +687,30 @@ class _ActionRound extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.22),
-                border: Border.all(color: color.withValues(alpha: 0.85), width: 1.6),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.35, -0.45),
+                  radius: 1.05,
+                  colors: [
+                    Color.lerp(color, Colors.white, 0.35)!,
+                    color.withValues(alpha: 0.30),
+                  ],
+                ),
+                border: Border.all(color: color.withValues(alpha: 0.9), width: 1.6),
                 boxShadow: [
-                  BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 12),
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
-              child: Icon(icon, color: Colors.white, size: size * 0.42),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: size * 0.42,
+                shadows: const [Shadow(color: Colors.black38, blurRadius: 4)],
+              ),
             ),
           ),
         ),
@@ -696,18 +774,40 @@ class _SprintButtonState extends State<_SprintButton> {
             height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _down
-                  ? widget.color.withValues(alpha: 0.85)
-                  : widget.color.withValues(alpha: 0.22),
+              gradient: _down
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [widget.color, Color.lerp(widget.color, Colors.white, 0.3)!],
+                    )
+                  : RadialGradient(
+                      center: const Alignment(-0.35, -0.45),
+                      radius: 1.05,
+                      colors: [
+                        Color.lerp(widget.color, Colors.white, 0.35)!,
+                        widget.color.withValues(alpha: 0.30),
+                      ],
+                    ),
               border: Border.all(
-                color: widget.color.withValues(alpha: 0.85),
+                color: widget.color.withValues(alpha: 0.9),
                 width: 1.6,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: _down ? 0.55 : 0.30),
+                  blurRadius: _down ? 20 : 14,
+                  spreadRadius: _down ? 2 : 0,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Icon(
               widget.icon,
               color: _down ? const Color(0xFF241A02) : Colors.white,
               size: widget.size * 0.42,
+              shadows: _down
+                  ? null
+                  : const [Shadow(color: Colors.black38, blurRadius: 4)],
             ),
           ),
         ),

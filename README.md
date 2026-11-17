@@ -1,156 +1,288 @@
-# ⚽ Fodball 3D
+# ⚽ Fodball 3D — Flutter Football Game
 
-**To'liq 3D futbol o'yini** — Flutter bilan yozilgan, tashqi 3D paket va assetlarsiz.
-Football Legends uslubidagi menyu, eFootball uslubidagi jamoa boshqaruvi va 11x11 3D
-o'yin bilan.
+<div align="center">
 
-## Skrinshotlar
+![Flutter](https://img.shields.io/badge/Flutter-3.47.5-02569B?logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-3.13+-0175C2?logo=dart&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+![Lines of Code](https://img.shields.io/badge/Lines%20of%20Code-9700%2B-blue)
 
-| Home (landshaft) | My Team — 4-3-3 |
-| --- | --- |
+**To'liq 3D futbol o'yini** — Flutter bilan yozilgan, tashqi 3D paket va asset'larsiz.
+Faqat `CustomPainter` va matematik proyeksiya yordamida yaratilgan real-time 3D render.
+
+[📥 Yuklab olish](#-oʻrnatish) · [🎮 O'ynash](#-oyin-rejimlari) · [📸 Skrinshotlar](#-skrinshotlar) · [🏗️ Arxitektura](#️-arxitektura)
+
+</div>
+
+---
+
+## 📸 Skrinshotlar
+
+### 🎮 3D O'yin (Ultra Graphics)
+<div align="center">
+<img src="docs/gameplay_3d.png" alt="3D Gameplay - Ultra Graphics" width="800"/>
+</div>
+
+> Real-time 3D render: stadion, 22 o'yinchi, to'p fizikasi, joystick boshqaruvi, minimap — hammasi `CustomPainter` bilan.
+
+### 🏠 Bosh Menyu — eFootball & Football Legends Style
+<table>
+<tr>
+<td><img src="docs/efootball_menu.jpg" alt="eFootball Style Menu" width="500"/></td>
+<td><img src="docs/football_legends_home.jpg" alt="Football Legends Home" width="500"/></td>
+</tr>
+<tr>
+<td align="center"><b>eFootball</b> — My Team, Store, UCL Event</td>
+<td align="center"><b>Football Legends</b> — Career, Next Match, League</td>
+</tr>
+</table>
+
+### 📱 Ilova ichidagi ekranlar
+| Home (Landshaft) | My Team — 4-3-3 |
+|---|---|
 | ![Home](docs/home_landscape.png) | ![My Team](docs/team.png) |
 
-| 11x11 o'yin | Store |
-| --- | --- |
+| 11×11 O'yin | Store |
+|---|---|
 | ![Match](docs/match.png) | ![Store](docs/store.png) |
 
-| Home (portret) |
-| --- |
-| ![Home portrait](docs/home_portrait.png) |
+---
 
-## Menyu boshqaruvi
+## ✨ Asosiy Xususiyatlar
 
-- **Scroll yo'q** — home ekrani hech qachon aylanmaydi; barcha bo'limlar
-  faqat tugma bosish orqali ochiladi.
-- Uch xil joylashuv avtomatik tanlanadi: keng ekran (3 ustun), planshet
-  (hero + 6 ta kafel) va telefon portreti (hero + 2×3 kafel).
-- `Start Match` / `Play Match` — 11x11 o'yinni boshlaydi.
+### 🎮 O'yin Mexanikasi
+- **11v11 To'liq 3D Match** — 22 o'yinchi, to'p fizikasi, AI jamoa
+- **Penalti Rejimi** — 10 ta penalti, banan effekti, darvozabon AI
+- **Real-time 3D Render** — `CustomPainter` + matematik proyeksiya, tashqi 3D kutubxonalarsiz
+- **Fizika Dvigatel** — gravitatsiya, to'qnashish, to'p uchishi, bounce mexanikasi
+- **AI Futbolchilar** — pozitsiya sxemasiga qarab harakatlanish, press, pas va zarba
 
-## O'yin rejimi
+### 🕹️ Boshqaruv
+- **Floating Joystick** — ekranning chap yarmida istalgan joydan
+- **Harakat Tugmalari** — `SHOOT`, `PASS`, `SPRINT`
+- **Penalti Nishon** — barmoq bilan tortib nishonga olish + kuch shkalasi
 
-### 1. Penalti (TRAINING)
+### 📊 Menejment Tizimi
+- **Tarkib Boshqaruvi** — 4-3-3, 4-4-2, 3-5-2 formatsialar
+- **O'yinchi Almashtirish** — drag & swap, auto lineup
+- **Team Power** — real-time o'rtacha reytingni hisoblash
+- **Transfer Bozori** — o'yinchilarni sotib olish va sotish
+- **Career Mode** — statistika, daraja, tajriba o'sishi
+- **Turnirlar** — UCL finaliga countdown + Champions ekrani
 
-- **10 ta penalti** — har zarba hisoblanadi: `GOAL!`, `SAVED`, `MISS`.
-- **Boshqaruv:** barmoq bilan sudrab nishonga oling (kuch shkalasi to'ladi) va qo'yib yuboring;
-  yoki shunchaki kerakli nuqtaga bosing.
-- **Banan effekti** — kuchliroq zarbada to'p yon tomonga buriladi.
-- **Darvozabon AI** — har zarbada zarba yo'nalishini "o'qish" ehtimoli oshadi (42% → 88%),
-  past/yuqori burchakka tashlanadi.
-- **FULL TIME** — gol soni, aniqlik foizi, eng uzun seriya, `PLAY AGAIN` va `MENU`.
+### 🏪 Do'kon & Iqtisodiyot
+- **Pack System** — Standard, Premium, Legendary paketlar
+- **Pack Reveal Animation** — ochish animatsiyasi
+- **Ikki Valyuta** — Coins va Gems
+- **Yutuqlar** — Missiyalar va mukofotlar
 
-### 2. 11x11 o'yin (PLAY MATCH)
+### 🎨 Dizayn
+- **Football Legends UI** — premium qorong'u tema
+- **eFootball Style** — My Team boshqaruv paneli
+- **Responsive Layout** — 3 xil tartib: keng, planshet, telefon
+- **Scroll Yo'q** — barcha navigatsiya faqat tugmalar orqali
+- **Material Design 3** — zamonaviy Flutter UI
 
-- **To'liq 3D match**: 22 o'yinchi, to'p fizikasi, egallik/olib qochish logikasi.
-- **Jonli render**: `AnimatedBuilder` har kadrda painter'ni qayta quradi — o'yinchilar
-  doim harakatda, yugurish sikli va tana tebranishi bilan.
-- **Boshqaruv**: floating joystick (ekranning chap yarmida istalgan joydan) +
-  `SHOOT` / `PASS` / `SPRINT` tugmalari.
-- **AI jamoa**: o'yinchilar pozitsiya sxemasiga qarab harakatlanadi, press qiladi,
-  pas va zarba qiladi; darvozabon to'pni kuzatadi.
-- **Kamera**: o'yinchini kattaroq ko'rsatish uchun yaqinlashtirilgan, to'pni
-  vertikal va yonma-yon kuzatadi.
-- **Match clock**: real vaqt 90 daqiqaga map qilinadi.
-- **Minimap**: chap pastki burchakda jonli xarita.
-- **UCL Final**: finalni yutsangiz `CHAMPIONS!` ekrani ochiladi.
+---
 
-## O'yin ichidagi ekranlar
-
-| Ekran | Tavsif |
-| --- | --- |
-| **Home** | Football Legends uslubidagi menyu: profil, daraja, valyuta, Next Match, LALIGA jadvali. Scrollsiz — faqat tugmalar |
-| **My Team** | 4-3-3 tarkib, Team Power, statistika paneli, taktika (sxema, uslub), yangilash |
-| **Career** | Statistika: o'yinlar, gollar, o'sish grafigi |
-| **Tournaments** | UCL finaliga qadar jonli countdown |
-| **Transfers** | Transfer bozori: sotib olish / sotish |
-| **Training** | Penalti rejimi kirish nuqtasi |
-| **Achievements** | Yutuqlar va sovg'alarni yig'ish |
-| **Store** | Paketlar (ochish animatsiyasi bilan), o'yinchilar, coins, premium |
-| **Settings** | Mavzu, haptik, match uzunligi, haqida |
-| **Champions** | Chempionlik ekrani |
-
-## 3D dvigatel
-
-Tashqi paket yo'q — `CustomPainter` va o'zimizning proyeksiya matematikasi:
-
-| Fayl | Vazifa |
-| --- | --- |
-| `lib/game3d/vec3.dart` | `V3` vektor, `Camera3D`, `Projector` (`project`, `unproject`, `scaleAt`) |
-| `lib/game3d/penalty_game.dart` | Penalti fizikasi, darvozabon AI, konfetti |
-| `lib/game3d/game_painter.dart` | Penalti 3D sahna: osmon, tribuna, maydon, darvoza, to'r |
-| `lib/game3d/match_game.dart` | 11x11 match dvigatel: AI, fizika, scoreboard |
-| `lib/game3d/match_painter.dart` | Match 3D sahna: keng maydon, murakkab chiziq va o'yinchilar |
-
-Kamera: ko'z `(0, 1.75, -9.6)`, qarash `(0, 1.15, 0)`, `fovY = 0.92`.
-Darvozaning real o'lchamlari: 7.32 × 2.44 m, to'p radiusi 0.11 m.
-Match maydoni: 105 × 68 m.
-
-## Ishga tushirish
-
-### Android Studio
-
-1. **File → Open** → `fodball` papkasini tanlang.
-2. Flutter SDK sozlangan bo'lishi kerak (**Settings → Languages & Frameworks → Flutter**).
-3. Yuqori o'ng burchakda qurilma tanlang (telefon yoki emulyator).
-4. **Run** (`Shift + F10`) — `main.dart` run configuration tayyor.
-
-> Qurilma ko'rinmasa: telefonni USB bilan ulang, **USB debugging** ni yoqing va telefonda **Allow** bosing.
-> Tekshirish: `flutter devices`.
-
-### Terminal
-
-```bash
-flutter pub get
-flutter run                # ulangan qurilma
-flutter run -d chrome      # brauzer
-```
-
-### APK
-
-```bash
-flutter build apk --release
-# build/app/outputs/flutter-apk/app-release.apk
-```
-
-## Tuzilma
+## 🏗️ Arxitektura
 
 ```
 lib/
-├─ main.dart                       # kirish nuqtasi
-├─ game3d/
-│  ├─ vec3.dart                    # 3D vektor, kamera, proyeksiya
-│  ├─ penalty_game.dart            # penalti logikasi, fizika, darvozabon AI
-│  ├─ game_painter.dart            # penalti 3D renderer
-│  ├─ match_game.dart              # 11x11 match dvigatel
-│  └─ match_painter.dart           # match 3D renderer
-├─ screens/
-│  ├─ home_screen.dart             # Football Legends menyusi
-│  ├─ team_screen.dart             # My Team (4-3-3)
-│  ├─ match_screen.dart            # 11x11 o'yin ekrani
-│  ├─ game_screen.dart             # penalti ekrani
-│  ├─ store_screen.dart            # do'kon
-│  ├─ career_screen.dart           # karyera
-│  ├─ tournaments_screen.dart      # turnirlar
-│  ├─ transfers_screen.dart        # transfer bozori
-│  ├─ training_screen.dart         # penalti kirish nuqtasi
-│  ├─ achievements_screen.dart     # yutuqlar
-│  ├─ settings_screen.dart         # sozlamalar
-│  └─ champions_screen.dart        # chempionlik
-├─ state/game_state.dart           # umumiy o'yin holati
-├─ theme/
-│  ├─ app_colors.dart
-│  └─ app_theme.dart
-├─ models/models.dart
-├─ data/mock_data.dart
-└─ widgets/ui.dart                 # umumiy UI komponentlari
+├── main.dart                    # Ilova entry point
+├── data/
+│   └── mock_data.dart           # O'yinchilar, klublar, do'kon ma'lumotlari
+├── game3d/                      # 🎮 3D O'yin Dvigatel
+│   ├── vec3.dart                # 3D vektor matematikasi (V3)
+│   ├── match_game.dart          # 11v11 o'yin logikasi (601 qator)
+│   ├── match_painter.dart       # 3D match render (753 qator)
+│   ├── penalty_game.dart        # Penalti o'yin logikasi (352 qator)
+│   └── game_painter.dart        # 3D penalti render (644 qator)
+├── models/
+│   └── models.dart              # Player, Club, MatchInfo, Pack, Achievement, ...
+├── screens/                     # 📱 Ekranlar
+│   ├── home_screen.dart         # Bosh menyu (3 layout: wide/compact/portrait)
+│   ├── match_screen.dart        # 11x11 3D o'yin + HUD + joystick + tugmalar
+│   ├── game_screen.dart         # Penalti 3D o'yini
+│   ├── team_screen.dart         # My Team — tarkib boshqaruvi
+│   ├── store_screen.dart        # Do'kon — paketlar, o'yinchilar, valyuta
+│   ├── career_screen.dart       # Career statistikasi
+│   ├── tournaments_screen.dart  # Turnirlar va UCL countdown
+│   ├── transfers_screen.dart    # Transfer bozori
+│   ├── training_screen.dart     # Training — penalti rejimiga kirish
+│   ├── achievements_screen.dart # Yutuqlar va mukofotlar
+│   ├── champions_screen.dart    # 🏆 Chempionlik tantanasi
+│   └── settings_screen.dart     # Sozlamalar
+├── state/
+│   └── game_state.dart          # Markaziy holat boshqaruvi (ChangeNotifier)
+├── theme/
+│   ├── app_colors.dart          # Rang palitrasi (20+ rang)
+│   └── app_theme.dart           # Material 3 dark tema
+└── widgets/
+    └── ui.dart                  # Qayta foydalaniladigan widgetlar (ClubCrest, CurrencyPill, ...)
 ```
 
-## Sifat nazorati
+### Texnik Tafsilotlar
 
-```bash
-flutter analyze   # 0 issue
-flutter test      # 35 test: 3D proyeksiya, match AI, scrollsiz menyu, jonli render
+| Komponent | Texnologiya |
+|---|---|
+| **3D Render** | `CustomPainter` + perspektiv proyeksiya matritsasi |
+| **Fizika** | O'zining fizika dvigatel: gravitatsiya, to'qnashish, bounce |
+| **AI** | Formation-based pozitsiyon AI + press + pas zanjiri |
+| **Holat** | `ChangeNotifier` + `InheritedWidget` (`GameStateScope`) |
+| **Animatsiya** | `Ticker` + `AnimatedBuilder` (60fps game loop) |
+| **Responsive** | `LayoutBuilder` — 3 layout breakpoint (1120px, 620px) |
+| **Render Loop** | `Ticker.createTicker()` → `game.tick(dt)` → `CustomPainter.paint()` |
+
+### Arxitektura Diagrammasi
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        FodballApp                            │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │              GameStateScope (InheritedWidget)          │  │
+│  │  ┌──────────────────────────────────────────────────┐  │  │
+│  │  │            GameState (ChangeNotifier)             │  │  │
+│  │  │  coins, gems, squad, table, achievements, ...    │  │  │
+│  │  └──────────────────────────────────────────────────┘  │  │
+│  │                         │                              │  │
+│  │  ┌──────────┐  ┌───────┴────────┐  ┌──────────────┐   │  │
+│  │  │  Screens │  │   Game3D       │  │   Widgets    │   │  │
+│  │  │          │  │ ┌────────────┐ │  │ ClubCrest    │   │  │
+│  │  │  Home    │  │ │MatchGame   │ │  │ CurrencyPill │   │  │
+│  │  │  Match ──┼──┤ │PenaltyGame │ │  │ PlayerCard   │   │  │
+│  │  │  Team    │  │ │MatchPainter│ │  │ ...          │   │  │
+│  │  │  Store   │  │ │GamePainter │ │  └──────────────┘   │  │
+│  │  │  ...     │  │ └────────────┘ │                      │  │
+│  │  └──────────┘  └────────────────┘                      │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-Flutter bilan ❤️ bilan yozilgan.
+## 🎮 O'yin Rejimlari
+
+### 1. ⚽ 11x11 To'liq Match (Play Match)
+
+| Xususiyat | Tavsif |
+|---|---|
+| **O'yinchilar** | 22 ta (11v11) — har birining pace, shooting, passing statistikasi |
+| **Fizika** | Gravitatsiya, to'p bounce, darvoza to'ri |
+| **Boshqaruv** | Floating joystick + Shoot/Pass/Sprint tugmalari |
+| **Kamera** | 3D — o'yinchini kuzatib yuradi |
+| **Minimap** | Chap pastki burchakda real-time xarita |
+| **Hisob** | Real vaqt 90 daqiqaga map qilinadi |
+| **Gol** | Animatsiya + konfetti + haptik feedback |
+| **Full Time** | Natija + mukofotlar + jadval yangilanishi |
+| **UCL Final** | G'alaba = `CHAMPIONS!` ekrani 🏆 |
+
+### 2. 🥅 Penalti (Training)
+
+| Xususiyat | Tavsif |
+|---|---|
+| **Zarbalar** | 10 ta penalti |
+| **Nishon** | Barmoq bilan tortib yo'naltirish + kuch shkalasi |
+| **Banan** | Kuchliroq zarbada yon burilish effekti |
+| **Darvozabon** | AI — zarba yo'nalishini o'qish ehtimoli oshadi (42% → 88%) |
+| **Natijalar** | GOAL!, SAVED, MISS — har zarba alohida |
+| **Statistika** | Gol soni, aniqlik %, eng uzun seriya |
+
+---
+
+## 📱 Ekranlar Ro'yxati
+
+| # | Ekran | Tavsif |
+|---|---|---|
+| 1 | **Home** | Football Legends menyu: profil, daraja, valyuta, Next Match, LALIGA jadvali |
+| 2 | **My Team** | 4-3-3 / 4-4-2 / 3-5-2 tarkib, Team Power, o'yinchi almashtirish |
+| 3 | **Match** | 11×11 3D o'yin — joystick, tugmalar, minimap, hisob |
+| 4 | **Training** | Penalti rejimi (3D) |
+| 5 | **Career** | Statistika: o'yinlar, gollar, assistlar, o'sish |
+| 6 | **Tournaments** | UCL finaliga jonli countdown |
+| 7 | **Transfers** | Transfer bozori: sotib olish / sotish |
+| 8 | **Store** | Paketlar (ochish animatsiyasi), o'yinchilar, coins, premium |
+| 9 | **Achievements** | Yutuqlar va sovg'alar |
+| 10 | **Settings** | Mavzu, haptik, match uzunligi |
+| 11 | **Champions** | 🏆 Chempionlik tantanasi ekrani |
+
+---
+
+## 📥 O'rnatish
+
+### Talablar
+
+- **Flutter** 3.47.5+ (Dart 3.13+)
+- **Android Studio** yoki **VS Code**
+- Android / iOS / Web emulator yoki qurilma
+
+### Qadamlar
+
+```bash
+# 1. Repositoryni klonlash
+git clone https://github.com/oyatillosadullayev55-u/fodball.git
+cd fodball
+
+# 2. Dependencylarni o'rnatish
+flutter pub get
+
+# 3. Ishga tushirish
+flutter run                    # Ulangan qurilmada
+flutter run -d chrome          # Web brauzerda
+flutter run -d android         # Android qurilmada
+
+# 4. Release build
+flutter build apk --release    # Android APK
+flutter build web --release    # Web
+flutter build ios --release    # iOS
+```
+
+---
+
+## 🛠️ Texnologiyalar
+
+| Texnologiya | Maqsad |
+|---|---|
+| **Flutter 3.47.5** | Cross-platform UI framework |
+| **Dart 3.13+** | Dasturlash tili |
+| **CustomPainter** | 3D render (tashqi paketlarsiz) |
+| **ChangeNotifier** | Holat boshqaruvi |
+| **InheritedWidget** | State injection (GameStateScope) |
+| **Ticker** | 60fps game loop |
+| **Material Design 3** | UI dizayn tizimi |
+
+---
+
+## 📊 Loyiha Statistikasi
+
+| Ko'rsatkich | Qiymat |
+|---|---|
+| **Dart fayllari** | 24 ta |
+| **Kod qatorlari** | 9,700+ |
+| **3D Dvigatel** | ~2,350 qator (game3d/) |
+| **Ekranlar** | 11 ta |
+| **Tashqi paketlar** | 0 (faqat Flutter SDK) |
+| **Platformalar** | Android, iOS, Web |
+
+---
+
+## 👨‍💻 Muallif
+
+**Oyatillo Sadullayev**
+
+- GitHub: [@oyatillosadullayev55-u](https://github.com/oyatillosadullayev55-u)
+
+---
+
+## 📄 Litsenziya
+
+Ushbu loyiha MIT litsenziyasi ostida tarqatiladi.
+
+---
+
+<div align="center">
+
+**⭐ Agar loyiha yoqdimi? Yulduzcha qo'yishni unutmang!**
+
+</div>
